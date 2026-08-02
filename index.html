@@ -12383,12 +12383,30 @@ function attemptPlayFromCatalog(idx){
       safeConfirm(
         "У тебя " + state.gamePoints + " очков за игру TowerBlock. Открыть этот тест за " +
         GAME_POINTS_GOAL + " очков — на одно прохождение?",
-        (ok)=>{
+        async (ok)=>{
           if(ok){
-            state.gamePoints -= GAME_POINTS_GOAL;
+            const userId = currentUserId();
+            try{
+              const r = await fetch(`${BACKEND_URL}/game-points/spend`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId, amount: GAME_POINTS_GOAL })
+              });
+              if(r.status === 402){
+                alert("Не хватает очков - баланс на сервере уже изменился.");
+                await syncUser();
+                renderCatalog();
+                return;
+              }
+              const resData = await r.json();
+              if(typeof resData.gamePoints === "number") state.gamePoints = resData.gamePoints;
+            }catch(e){
+              console.warn("Не удалось списать очки на сервере:", e.message);
+              state.gamePoints -= GAME_POINTS_GOAL; // фолбэк, если сервер недоступен
+            }
             saveState();
             renderCatalog();
-            startQuiz(idx, true); // разовый доступ — обходим обычную проверку блокировки
+            startQuiz(idx, true);
           } else {
             offerProPurchase();
           }
@@ -12449,15 +12467,27 @@ function currentUserId(){
   return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : null;
 }
 
-async function checkProStatus(){
+async function syncUser(){
   const userId = currentUserId();
   if(!userId || !BACKEND_URL || BACKEND_URL.includes("your-backend-url")) return;
   try{
-    const r = await fetch(`${BACKEND_URL}/pro-status?userId=${userId}`);
+    const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    const r = await fetch(`${BACKEND_URL}/sync-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        firstName: tgUser.first_name || null,
+        username: tgUser.username || null
+      })
+    });
     const data = await r.json();
     state.isPro = !!data.pro;
+    // Баланс очков теперь общий для аккаунта - берём с сервера,
+    // а не то, что успело накопиться локально на этом устройстве
+    if(typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
   }catch(e){
-    console.warn("Не удалось проверить Pro-статус:", e.message);
+    console.warn("Не удалось синхронизировать пользователя:", e.message);
   }
 }
 
@@ -12614,15 +12644,31 @@ window.addEventListener("message", (e)=>{
   if(data.type === "towerbloxx:gameover"){
     const earned = Number(data.earnedPoints) || 0;
     if(earned > 0){
-      state.gamePoints = (state.gamePoints||0) + earned;
-      saveState();
-      renderCatalog();
-      const frame = document.getElementById("towerFrame");
-      if(frame && frame.contentWindow){
+      const userId = currentUserId();
+      (async ()=>{
         try{
-          frame.contentWindow.postMessage({ type:"towerbloxx:pointsUpdate", total: state.gamePoints }, "*");
-        }catch(err){}
-      }
+          const r = await fetch(`${BACKEND_URL}/game-points/earn`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, amount: earned })
+          });
+          const resData = await r.json();
+          if(typeof resData.gamePoints === "number") state.gamePoints = resData.gamePoints;
+        }catch(e){
+          // Сервер недоступен - остаёмся на локальном значении как временный фолбэк,
+          // но это не будет учтено на другом устройстве
+          state.gamePoints = (state.gamePoints||0) + earned;
+          console.warn("Не удалось начислить очки на сервере:", e.message);
+        }
+        saveState();
+        renderCatalog();
+        const frame = document.getElementById("towerFrame");
+        if(frame && frame.contentWindow){
+          try{
+            frame.contentWindow.postMessage({ type:"towerbloxx:pointsUpdate", total: state.gamePoints }, "*");
+          }catch(err){}
+        }
+      })();
     }
   }
 });
@@ -12632,7 +12678,7 @@ window.addEventListener("message", (e)=>{
   try{ initTelegram(); }catch(e){ console.warn("initTelegram упал:", e); }
   try{ await loadState(); }catch(e){ console.warn("loadState упал:", e); }
   try{ handleReferral(); }catch(e){ console.warn("handleReferral упал:", e); }
-  try{ await checkProStatus(); }catch(e){ console.warn("checkProStatus упал:", e); }
+  try{ await syncUser(); }catch(e){ console.warn("syncUser упал:", e); }
   renderToday();
 })();
 </script>
