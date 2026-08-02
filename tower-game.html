@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TowerBlock</title>
+<link rel="stylesheet" href="tower-style.css" />
+</head>
+<body>
+
+  <div id="loadingScreen" class="loading-screen">
+    <div class="loading-content">
+      <div class="logo-spinner"></div>
+      <span class="logo-text">TowerBlock</span>
+    </div>
+  </div>
+
+  <div id="container">
+    <button id="closeGameBtn" title="Закрыть игру">✕</button>
+    <div id="pointsCounter" class="points-counter">🏆 <span id="pointsVal">0</span>/500</div>
+    <div id="gameClickLayer" class="game-click-layer"></div>
+    <div id="game"></div>
+    <div id="score">0</div>
+    <div class="game-over">
+      <h2>Игра окончена!</h2>
+      <p>Ты отлично справился, но можно лучше!</p>
+      <p>Нажмите, чтобы начать заново</p>
+    </div>
+    <div class="game-ready">
+      <div id="start-button">Построй свою башню!</div>
+      <p class="points-hint">За 500 очков можно открыть любой тест для разового прохождения. Очки за игру начисляются, если счёт выше 10, и суммируются между играми.</p>
+    </div>
+  </div>
+
+  <script src="./three_min.js"></script>
+  <script src="./TweenMax_min.js"></script>
+  <script src="./tower-game.js"></script>
+  <script>
+    // Скрываем загрузочный экран сразу после инициализации сцены
+    window.addEventListener("load", () => {
+      setTimeout(() => {
+        const ls = document.getElementById("loadingScreen");
+        if (ls) { ls.style.opacity = "0"; setTimeout(() => ls.style.display = "none", 500); }
+      }, 300);
+    });
+
+    // Стартовое значение накопленных очков приходит от родительского приложения через ?points=
+    (function initPoints(){
+      const params = new URLSearchParams(window.location.search);
+      const start = parseInt(params.get("points"), 10);
+      document.getElementById("pointsVal").textContent = Number.isFinite(start) ? start : 0;
+    })();
+
+    // Родитель может прислать актуальный тотал очков (например, сразу после начисления)
+    window.addEventListener("message", (e) => {
+      const data = e.data || {};
+      if (data.type === "towerbloxx:pointsUpdate" && typeof data.total === "number") {
+        document.getElementById("pointsVal").textContent = data.total;
+      }
+    });
+
+    document.getElementById("closeGameBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "towerbloxx:close" }, "*");
+        }
+      } catch (err) {}
+    });
+  </script>
+</body>
+</html>

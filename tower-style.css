@@ -1,0 +1,225 @@
+html,
+body {
+  margin: 0;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  font-family: "Comfortaa", "Inter", sans-serif;
+  user-select: none;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: auto;
+  scroll-behavior: auto;
+  background: #D0CBC7;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  overscroll-behavior: contain;
+}
+
+#container {
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+#container #score {
+  position: absolute;
+  top: 20px;
+  width: 100%;
+  text-align: center;
+  font-size: 10vh;
+  transition: transform 0.5s ease;
+  color: #333344;
+  transform: translatey(-200px) scale(1);
+  user-select: none;
+}
+#container #game {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  user-select: none;
+}
+#container .game-over {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 85%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+#container .game-over * {
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 0;
+  transform: translatey(-50px);
+  color: #333344;
+  user-select: none;
+}
+#container .game-over h2 {
+  margin: 0;
+  padding: 0;
+  font-size: 40px;
+  user-select: none;
+}
+#container .game-ready {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  user-select: none;
+  padding-top: 20vh;
+}
+#container .game-ready #start-button {
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  opacity: 0;
+  transform: translatey(-50px);
+  border: 3px solid #333344;
+  padding: 10px 20px;
+  background-color: transparent;
+  color: #333344;
+  font-size: 28px;
+  user-select: none;
+  text-align: center;
+}
+#container.playing #score,
+#container.resetting #score {
+  transform: translatey(0px) scale(1);
+  user-select: none;
+}
+#container.ready .game-ready #start-button {
+  opacity: 1;
+  transform: translatey(0);
+  user-select: none;
+}
+#container.ended #score {
+  transform: translatey(6vh) scale(1.5);
+  user-select: none;
+}
+#container.ended .game-over * {
+  opacity: 1;
+  transform: translatey(0);
+  user-select: none;
+}
+#container.ended .game-over p {
+  transition-delay: 0.3s;
+  user-select: none;
+}
+
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #D0CBC7;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  transition: opacity 0.5s ease;
+}
+.loading-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.logo-spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid rgba(255, 255, 255, 0.3);
+  border-top: 6px solid #333344;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.logo-text {
+  font-family: "Comfortaa", sans-serif;
+  font-size: 22px;
+  color: #333344;
+  font-weight: bold;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.points-counter {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1001;
+  background: rgba(255,255,255,0.35);
+  border: 2px solid #333344;
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-family: "Comfortaa", sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333344;
+}
+
+.points-hint {
+  max-width: 280px;
+  margin: 14px auto 0;
+  padding: 0 20px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #333344;
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transform: translatey(-50px);
+}
+#container.ready .game-ready .points-hint {
+  opacity: 0.75;
+  transform: translatey(0);
+}
+
+/* Прозрачный слой для кликов по игре */
+.game-click-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: auto;
+  background: transparent;
+}
+
+/* Кнопка закрытия игры (возврат в «Зеркало дня») */
+#closeGameBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1002;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #333344;
+  background: rgba(255,255,255,0.35);
+  color: #333344;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#container.playing #closeGameBtn {
+  opacity: 0.35;
+}
