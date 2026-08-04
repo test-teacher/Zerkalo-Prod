@@ -11920,13 +11920,31 @@ function initTelegram(){
   }
 }
 
-function handleReferral(){
+async function handleReferral(){
   if(!tg) return;
   const start = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-  if(start && start.startsWith("ref_") && !state.referredUsed){
-    state.referredUsed = true;
-    state.archiveBonusDays = (state.archiveBonusDays||0) + 1;
-    saveState();
+  if(!(start && start.startsWith("ref_"))) return;
+
+  const referrerId = start.slice(4);
+  const userId = currentUserId();
+  if(!userId || !referrerId || String(referrerId) === String(userId)) return;
+  if(!BACKEND_URL || BACKEND_URL.includes("your-backend-url")) return;
+
+  try{
+    const r = await fetch(`${BACKEND_URL}/referral/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, referrerId })
+    });
+    const data = await r.json();
+    if(data.claimed){
+      state.archiveBonusDays = (state.archiveBonusDays||0) + 1;
+      saveState();
+    }
+    // data.claimed === false значит ссылка уже была использована раньше -
+    // тихо ничего не делаем, это ожидаемый случай, а не ошибка
+  }catch(e){
+    console.warn("Не удалось учесть реферальную ссылку:", e.message);
   }
 }
 
@@ -12486,6 +12504,8 @@ async function syncUser(){
     // Баланс очков теперь общий для аккаунта - берём с сервера,
     // а не то, что успело накопиться локально на этом устройстве
     if(typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
+    if(typeof data.bonusDays === "number") state.archiveBonusDays = data.bonusDays;
+    if(typeof data.invitedCount === "number") state.invitedCount = data.invitedCount;
   }catch(e){
     console.warn("Не удалось синхронизировать пользователя:", e.message);
   }
@@ -12677,8 +12697,8 @@ window.addEventListener("message", (e)=>{
 (async function init(){
   try{ initTelegram(); }catch(e){ console.warn("initTelegram упал:", e); }
   try{ await loadState(); }catch(e){ console.warn("loadState упал:", e); }
-  try{ handleReferral(); }catch(e){ console.warn("handleReferral упал:", e); }
   try{ await syncUser(); }catch(e){ console.warn("syncUser упал:", e); }
+  try{ await handleReferral(); }catch(e){ console.warn("handleReferral упал:", e); }
   renderToday();
 })();
 </script>
