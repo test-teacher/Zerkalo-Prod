@@ -416,21 +416,9 @@ function dailyPool(){
 
 function pickTodayTestIdx(){
   if(TESTS.length === 0) return null;
-  if(state.todayTestDate === todayStr() && state.todayTestIdx !== null
-     && state.todayTestIdx < TESTS.length){
-    return state.todayTestIdx;
-  }
   const pool = dailyPool();
-  let idx;
-  if(pool.length === 1){
-    idx = pool[0];
-  } else {
-    const choices = pool.filter(i=> i !== state.todayTestIdx);
-    idx = choices[Math.floor(Math.random() * choices.length)];
-  }
-  state.todayTestIdx = idx;
-  state.todayTestDate = todayStr();
-  saveState();
+  if(pool.length === 0) return null;
+  const idx = pool[dayEpoch() % pool.length];
   return idx;
 }
 
