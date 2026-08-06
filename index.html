@@ -326,6 +326,24 @@ async function loadTestsFromServer(){
   }
 }
 
+// Фоновая предзагрузка картинок всех тестов - запускается сразу после
+// получения списка с сервера, НЕ блокирует показ первого экрана.
+// Браузер сам закэширует картинки, и когда пользователь дойдёт до
+// конкретного вопроса - она уже будет готова, без задержки на сеть.
+function preloadTestImages(){
+  const urls = new Set();
+  TESTS.forEach(test => {
+    (test.q || []).forEach(q => { if(q.img) urls.add(q.img); });
+    if(test.archetypes){
+      Object.values(test.archetypes).forEach(a => { if(a.img) urls.add(a.img); });
+    }
+  });
+  urls.forEach(url => {
+    const img = new Image();
+    img.src = url; // сам факт создания Image с src запускает загрузку в фоне
+  });
+}
+
 /* Очки за игру TowerBlock: за 500 накопленных очков можно один раз
    открыть любой закрытый тест (не постоянно — только на одно прохождение). */
 const GAME_POINTS_GOAL = 500;
@@ -1255,6 +1273,7 @@ window.addEventListener("message", (e)=>{
 (async function init(){
   try{ initTelegram(); }catch(e){ console.warn("initTelegram упал:", e); }
   try{ await loadTestsFromServer(); }catch(e){ console.warn("loadTestsFromServer упал:", e); }
+  preloadTestImages(); // фоном, не ждём - картинки подтянутся пока юзер читает интро
   try{ await loadState(); }catch(e){ console.warn("loadState упал:", e); }
   try{ await syncUser(); }catch(e){ console.warn("syncUser упал:", e); }
   try{ await handleReferral(); }catch(e){ console.warn("handleReferral упал:", e); }
