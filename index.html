@@ -296,7 +296,7 @@
       </div>
     </div>
 
-    <!-- РЕАЛЬНАЯ карточка - формат Reward/RewardedVideo через AdsGram -->
+    <!-- ЗАГЛУШКА - формат Reward/RewardedVideo, нужен ID числом или int-... -->
     <div class="card" id="watchAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📺</div>
@@ -305,11 +305,13 @@
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за просмотр</p>
         </div>
       </div>
-      <button id="watchAdBtn" style="width:100%; margin-top:12px;">Смотреть</button>
-      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
+      <button id="watchAdBtn" style="width:100%; margin-top:12px;" disabled>Скоро</button>
+      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;">Нужен отдельный ID для видео-формата.</p>
     </div>
 
-    <!-- ЗАГЛУШКА - формат Task (подписаться/перейти), ждём отдельный block-id -->
+    <!-- РЕАЛЬНАЯ карточка - формат Task через настоящий веб-компонент AdsGram.
+         Кнопку/состояния рисует сам их компонент, мы только слушаем событие
+         "reward" чтобы обновить баланс после начисления на сервере. -->
     <div class="card" id="taskAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📋</div>
@@ -318,8 +320,7 @@
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за выполнение</p>
         </div>
       </div>
-      <button id="taskStartBtn" style="width:100%; margin-top:12px;">Выполнить</button>
-      <button id="taskCheckBtn" style="width:100%; margin-top:12px; display:none;">Проверить</button>
+      <adsgram-task data-block-id="task-41494" id="adsgramTaskEl" style="display:block; margin-top:12px;"></adsgram-task>
       <p class="muted" id="taskAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
     </div>
 
@@ -1172,49 +1173,25 @@ function renderFriends(){
 }
 
 /* ================== ЗАДАНИЯ ==================
-   Карточка "Посмотреть рекламу" - НАСТОЯЩАЯ, формат Reward/RewardedVideo
-   через AdsGram. Начисление алмаза происходит НЕ здесь и не по клику -
-   а на сервере, когда AdsGram сам подтвердит показ через постбэк на
-   /ads/adsgram-reward (см. server.js). Здесь мы только запускаем показ
-   и потом подтягиваем баланс с сервера, чтобы увидеть актуальное число.
+   Карточка "Посмотреть рекламу" (Reward/RewardedVideo) - пока заглушка:
+   есть только block-id формата Task ("task-..."), для видео нужен
+   отдельный ID (числовой или "int-..."). Кнопка задизейблена в разметке.
 
-   Карточка "Задание от рекламодателя" - пока заглушка (формат Task,
-   ждём отдельный block-id от AdsGram), использует старый клиентский
-   /ads/watch - стоит заменить на такой же серверный постбэк, когда
-   дойдём до этого формата. */
-
-const ADSGRAM_BLOCK_ID = "task-41494"; 
+   Карточка "Задание от рекламодателя" - НАСТОЯЩАЯ, через официальный
+   веб-компонент AdsGram <adsgram-task>. Всю визуальную часть (кнопку,
+   состояния "выполнить"/"забрать награду") рисует сам компонент - мы
+   только слушаем его событие "reward". Начисление алмаза происходит
+   НЕ в этом коде, а на сервере - AdsGram сам стучится на наш постбэк
+   /ads/adsgram-reward, когда подтверждает выполнение (тот же секретный
+   URL, что настроен для видео-формата - можно переиспользовать один
+   и тот же Reward URL в личном кабинете для обоих блоков, наш бэкенд
+   не различает форматы, ему нужен только userId). Здесь только
+   подтягиваем актуальный баланс после события. */
 
 function renderTasks(){
   document.getElementById("diamondsBalance").textContent = state.diamonds || 0;
   const remaining = typeof state.adViewsRemaining === "number" ? state.adViewsRemaining : 20;
   document.getElementById("adViewsRemainingText").textContent = `${remaining}/20`;
-
-  const watchBtn = document.getElementById("watchAdBtn");
-  const watchHint = document.getElementById("watchAdHint");
-  if(remaining <= 0){
-    watchBtn.disabled = true;
-    watchBtn.textContent = "Лимит на сегодня исчерпан";
-    watchHint.textContent = "Приходи завтра — счётчик обнулится в полночь.";
-  } else {
-    watchBtn.disabled = false;
-    watchBtn.textContent = "Смотреть";
-    watchHint.textContent = "";
-  }
-
-  const startBtn = document.getElementById("taskStartBtn");
-  const checkBtn = document.getElementById("taskCheckBtn");
-  const hint = document.getElementById("taskAdHint");
-  checkBtn.style.display = "none";
-  if(remaining <= 0){
-    startBtn.disabled = true;
-    startBtn.textContent = "Лимит на сегодня исчерпан";
-    hint.textContent = "";
-  } else {
-    startBtn.disabled = false;
-    startBtn.textContent = "Выполнить";
-    hint.textContent = "";
-  }
 }
 
 async function refreshBalanceFromServer(){
@@ -1235,80 +1212,34 @@ async function refreshBalanceFromServer(){
   }
 }
 
-async function onWatchAdClick(){
-  const btn = document.getElementById("watchAdBtn");
-  const hint = document.getElementById("watchAdHint");
-  btn.disabled = true;
-  hint.textContent = "Загрузка рекламы…";
-
-  try{
-    // ЗАМЕНИ этот блок кодом ИЗ ЛИЧНОГО КАБИНЕТА ADSGRAM (раздел твоего
-    // block-id -> Get code / готовый сниппет интеграции). Ориентировочно
-    // выглядит примерно так - сверься с их реальным примером кода:
-    //
-    //   const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
-    //   await AdController.show();
-    //
-    await window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }).show();
-
-    hint.textContent = "Засчитываем…";
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    await refreshBalanceFromServer();
-    safeAlert("Спасибо за просмотр! Баланс обновлён.");
-  }catch(e){
-    console.warn("Реклама не показана или пропущена:", e);
-    hint.textContent = "Реклама не была досмотрена.";
-  }
-
-  renderTasks();
-}
-
-function onTaskStartClick(){
-  const startBtn = document.getElementById("taskStartBtn");
-  const checkBtn = document.getElementById("taskCheckBtn");
+// Реальный обработчик события завершения задания от AdsGram.
+// event.detail может содержать доп. данные от них - пока не используем,
+// нам достаточно самого факта события, чтобы подтянуть баланс с сервера.
+async function onAdsgramTaskReward(event){
   const hint = document.getElementById("taskAdHint");
+  hint.textContent = "Засчитываем…";
 
-  startBtn.style.display = "none";
-  hint.textContent = "Задание пока не подключено (ждём отдельный block-id от AdsGram) — имитация…";
-
-  setTimeout(()=>{
-    checkBtn.style.display = "block";
-    hint.textContent = "Готово? Нажми «Проверить».";
-  }, 1500);
-}
-
-async function onTaskCheckClick(){
-  const checkBtn = document.getElementById("taskCheckBtn");
-  checkBtn.disabled = true;
-  try{
-    const userId = currentUserId();
-    const res = await fetch(`${BACKEND_URL}/ads/watch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId })
-    });
-    if(res.status === 429){
-      safeAlert("Дневной лимит уже исчерпан.");
-    } else if(!res.ok){
-      safeAlert("Не удалось начислить награду.");
-    } else {
-      const data = await res.json();
-      state.diamonds = data.diamonds;
-      state.adViewsRemaining = data.adViewsRemaining;
-      await saveState();
-      safeAlert("+1 💎 Задание засчитано!");
-    }
-  }catch(e){
-    console.warn("Ошибка зачёта задания:", e.message);
-  }
-  checkBtn.disabled = false;
-  document.getElementById("taskStartBtn").style.display = "block";
+  // Небольшая пауза, чтобы серверный постбэк от AdsGram успел долететь
+  // до нашего бэкенда раньше, чем мы запросим свежий баланс
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  await refreshBalanceFromServer();
   renderTasks();
+
+  hint.textContent = "Готово! +1 💎";
+  safeAlert("Задание засчитано, спасибо!");
 }
 
-document.getElementById("watchAdBtn").addEventListener("click", onWatchAdClick);
-document.getElementById("taskStartBtn").addEventListener("click", onTaskStartClick);
-document.getElementById("taskCheckBtn").addEventListener("click", onTaskCheckClick);
+function onAdsgramTaskError(event){
+  console.warn("Ошибка задания AdsGram:", event.detail);
+  document.getElementById("taskAdHint").textContent = "Не удалось выполнить задание, попробуй ещё раз.";
+}
+
+const adsgramTaskEl = document.getElementById("adsgramTaskEl");
+if(adsgramTaskEl){
+  adsgramTaskEl.addEventListener("reward", onAdsgramTaskReward);
+  adsgramTaskEl.addEventListener("error", onAdsgramTaskError);
+}
+
 
 /* ================== НАВИГАЦИЯ ================== */
 function switchView(name){
