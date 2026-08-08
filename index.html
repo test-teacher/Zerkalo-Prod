@@ -364,7 +364,7 @@
       </div>
     </div>
 
-    <!-- ЗАГЛУШКА - формат Reward/RewardedVideo, нужен ID числом или int-... -->
+    <!-- РЕАЛЬНАЯ карточка - формат Reward/RewardedVideo через AdController -->
     <div class="card" id="watchAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📺</div>
@@ -373,19 +373,19 @@
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за просмотр</p>
         </div>
       </div>
-      <button id="watchAdBtn" style="width:100%; margin-top:12px;" disabled>Скоро</button>
-      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;">Нужен отдельный ID для видео-формата. А я в рот шатал щас создавать бота, писать его в адсграм, писать в него ссылку версела, писать токе бота ещё и так ещё и ещё так что утром вместе с тобой надо сесть, нагенерить, так что раньше времени не просите. Адсграмм тестовый потому что не сразу на баннер цепляет рекламу, а без этого я немог нормально стили прикинуть</p>
+      <button id="watchAdBtn" style="width:100%; margin-top:12px;">Смотреть</button>
+      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
     </div>
 
     <div class="card" id="taskAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📋</div>
         <div style="flex:1;">
-          <p style="margin:0; font-weight:600;">Задание от рекламодателя</p>
+          <p style="margin:0; font-weight:600;">Задание от партнёров</p>
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за выполнение</p>
         </div>
       </div>
-      <adsgram-task data-block-id="task-41494" data-debug="true" id="adsgramTaskEl" style="display:block; margin-top:12px;">
+      <adsgram-task data-block-id="task-41494" id="adsgramTaskEl" style="display:block; margin-top:12px;">
         <div slot="button" class="adsgram-slot-btn">Перейти</div>
         <div slot="claim" class="adsgram-slot-btn adsgram-slot-btn--claim">Забрать</div>
         <div slot="done" class="adsgram-slot-btn adsgram-slot-btn--done">Готово</div>
@@ -1296,26 +1296,63 @@ function renderFriends(){
 }
 
 /* ================== ЗАДАНИЯ ==================
-   Карточка "Посмотреть рекламу" (Reward/RewardedVideo) - пока заглушка:
-   есть только block-id формата Task ("task-..."), для видео нужен
-   отдельный ID (числовой или "int-..."). Кнопка задизейблена в разметке.
+   Карточка "Посмотреть рекламу" (Reward/RewardedVideo) - НАСТОЯЩАЯ,
+   ID 41902 (числовой формат, как требует их API). Показ идёт через
+   window.Adsgram.init({blockId}).show(). Начисление алмаза происходит
+   НЕ в этом коде и не по клику - а на сервере, когда AdsGram сам
+   подтвердит показ через постбэк /ads/adsgram-reward. Мы только
+   запускаем показ и потом подтягиваем баланс с сервера.
 
    Карточка "Задание от рекламодателя" - НАСТОЯЩАЯ, через официальный
    веб-компонент AdsGram <adsgram-task>. Всю визуальную часть (кнопку,
    состояния "выполнить"/"забрать награду") рисует сам компонент - мы
-   только слушаем его событие "reward". Начисление алмаза происходит
-   НЕ в этом коде, а на сервере - AdsGram сам стучится на наш постбэк
-   /ads/adsgram-reward, когда подтверждает выполнение (тот же секретный
-   URL, что настроен для видео-формата - можно переиспользовать один
-   и тот же Reward URL в личном кабинете для обоих блоков, наш бэкенд
-   не различает форматы, ему нужен только userId). Здесь только
-   подтягиваем актуальный баланс после события. */
+   только слушаем его событие "reward". Начисление тоже через тот же
+   серверный постбэк - один и тот же Reward URL в личном кабинете
+   подходит для обоих блоков, наш бэкенд не различает форматы, ему
+   нужен только userId. */
+
+const ADSGRAM_BLOCK_ID = "41902";
 
 function renderTasks(){
   document.getElementById("diamondsBalance").textContent = state.diamonds || 0;
   const remaining = typeof state.adViewsRemaining === "number" ? state.adViewsRemaining : 20;
   document.getElementById("adViewsRemainingText").textContent = `${remaining}/20`;
+
+  const watchBtn = document.getElementById("watchAdBtn");
+  const watchHint = document.getElementById("watchAdHint");
+  if(remaining <= 0){
+    watchBtn.disabled = true;
+    watchBtn.textContent = "Лимит на сегодня исчерпан";
+    watchHint.textContent = "Приходи завтра — счётчик обнулится в полночь.";
+  } else {
+    watchBtn.disabled = false;
+    watchBtn.textContent = "Смотреть";
+    watchHint.textContent = "";
+  }
 }
+
+async function onWatchAdClick(){
+  const btn = document.getElementById("watchAdBtn");
+  const hint = document.getElementById("watchAdHint");
+  btn.disabled = true;
+  hint.textContent = "Загрузка рекламы…";
+
+  try{
+    await window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }).show();
+
+    hint.textContent = "Засчитываем…";
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    await refreshBalanceFromServer();
+    safeAlert("Спасибо за просмотр! Баланс обновлён.");
+  }catch(e){
+    console.warn("Реклама не показана или пропущена:", e);
+    hint.textContent = "Реклама не была досмотрена.";
+  }
+
+  renderTasks();
+}
+
+document.getElementById("watchAdBtn").addEventListener("click", onWatchAdClick);
 
 async function refreshBalanceFromServer(){
   try{
