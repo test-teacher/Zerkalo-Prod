@@ -367,21 +367,28 @@
     <!-- РЕАЛЬНАЯ карточка - формат Reward/RewardedVideo через AdController -->
     <div class="card" id="watchAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-size:32px;">📺</div>
+        <div class="game-card-icon">📺</div>
         <div style="flex:1;">
           <p style="margin:0; font-weight:600;">Посмотреть рекламу</p>
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за просмотр</p>
         </div>
       </div>
-      <button id="watchAdBtn" style="width:100%; margin-top:12px;">Смотреть</button>
+      <button class="btn" id="watchAdBtn" style="width:100%; margin-top:14px;">Смотреть</button>
       <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
     </div>
 
+    <!-- Партнёрские задания - собственные ссылки, не через AdsGram.
+         Проверить факт выполнения нечем - награда даётся по нажатию,
+         но ровно один раз на пользователя (защита на сервере). -->
+    <div id="customTasksList"></div>
+
+    <!-- AdsGram Task оставлен закомментированным на будущее - легко
+         вернуть, просто раскомментировав и убрав customTasksList выше
     <div class="card" id="taskAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📋</div>
         <div style="flex:1;">
-          <p style="margin:0; font-weight:600;">Задание от партнёров</p>
+          <p style="margin:0; font-weight:600;">Задание от рекламодателя</p>
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за выполнение</p>
         </div>
       </div>
@@ -392,6 +399,7 @@
       </adsgram-task>
       <p class="muted" id="taskAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
     </div>
+    -->
 
     <p class="muted" style="margin-top:18px; font-size:12px; text-align:center;">
       Новые задания появятся здесь позже.
@@ -1313,7 +1321,116 @@ function renderFriends(){
 
 const ADSGRAM_BLOCK_ID = "41902";
 
-function renderTasks(){
+// Партнёрские задания - собственные ссылки (не через AdsGram). id должен
+// быть стабильным и уникальным - именно по нему сервер помнит, что
+// награда уже выдана этому пользователю за это задание.
+const CUSTOM_TASKS = [
+  {
+    id: "honey_farm_bot",
+    icon: "🍯",
+    title: "Собирай мёд",
+    desc: "и обменивай его на удобную для себя валюту",
+    url: "https://t.me/Honey_FarmBot?start=122895"
+  },
+  {
+    id: "jacks_farm_bot",
+    icon: "🐄",
+    title: "Развивай ферму",
+    desc: "свою ферму животных",
+    url: "https://telegram.me/JacksFarm_bot?start=238312"
+  }
+  // Канал - добавь сюда, когда будет ссылка:
+  // { id: "our_channel", icon: "📢", title: "Подпишись на канал", desc: "и будь в курсе новостей", url: "https://t.me/..." }
+];
+const CUSTOM_TASK_REWARD = 5;
+
+let claimedCustomTaskIds = new Set();
+let customTasksLoaded = false;
+
+async function loadClaimedCustomTasks(){
+  try{
+    const userId = currentUserId();
+    const r = await fetch(`${BACKEND_URL}/custom-tasks/claimed?userId=${encodeURIComponent(userId)}`);
+    const data = await r.json();
+    claimedCustomTaskIds = new Set(data.claimedTaskIds || []);
+  }catch(e){
+    console.warn("Не удалось получить список выполненных заданий:", e.message);
+  }
+}
+
+function renderCustomTasks(){
+  const wrap = document.getElementById("customTasksList");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+
+  CUSTOM_TASKS.forEach(task=>{
+    const done = claimedCustomTaskIds.has(task.id);
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.marginTop = "14px";
+    card.innerHTML = `
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="game-card-icon">${task.icon}</div>
+        <div style="flex:1;">
+          <p style="margin:0; font-weight:600;">${task.title}</p>
+          <p class="muted" style="margin:2px 0 0; font-size:13px;">${task.desc}</p>
+        </div>
+      </div>
+      <button class="btn ${done ? "secondary" : ""}" style="width:100%; margin-top:14px;" ${done ? "disabled" : ""}>
+        ${done ? "Выполнено ✓" : `Перейти · +${CUSTOM_TASK_REWARD} 💎`}
+      </button>
+    `;
+    if(!done){
+      card.querySelector("button").addEventListener("click", ()=> onCustomTaskClick(task, card.querySelector("button")));
+    }
+    wrap.appendChild(card);
+  });
+}
+
+async function onCustomTaskClick(task, btn){
+  btn.disabled = true;
+
+  // Открываем ссылку - через Telegram, если это ссылка на бота/канал
+  try{
+    if(tg && tg.openTelegramLink && /^https:\/\/(t\.me|telegram\.me)\//.test(task.url)){
+      tg.openTelegramLink(task.url);
+    } else if(tg && tg.openLink){
+      tg.openLink(task.url);
+    } else {
+      window.open(task.url, "_blank");
+    }
+  }catch(e){
+    console.warn("Не удалось открыть ссылку задания:", e.message);
+  }
+
+  try{
+    const userId = currentUserId();
+    const r = await fetch(`${BACKEND_URL}/custom-tasks/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, taskId: task.id })
+    });
+    const data = await r.json();
+
+    if(data.claimed){
+      claimedCustomTaskIds.add(task.id);
+      if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
+      await saveState();
+      safeAlert(`+${CUSTOM_TASK_REWARD} 💎 Спасибо!`);
+    } else if(data.alreadyClaimed){
+      claimedCustomTaskIds.add(task.id); // уже забирал раньше, просто помечаем
+    } else {
+      btn.disabled = false;
+    }
+  }catch(e){
+    console.warn("Ошибка партнёрского задания:", e.message);
+    btn.disabled = false;
+  }
+
+  renderTasks();
+}
+
+async function renderTasks(){
   document.getElementById("diamondsBalance").textContent = state.diamonds || 0;
   const remaining = typeof state.adViewsRemaining === "number" ? state.adViewsRemaining : 20;
   document.getElementById("adViewsRemainingText").textContent = `${remaining}/20`;
@@ -1329,6 +1446,12 @@ function renderTasks(){
     watchBtn.textContent = "Смотреть";
     watchHint.textContent = "";
   }
+
+  if(!customTasksLoaded){
+    customTasksLoaded = true;
+    await loadClaimedCustomTasks();
+  }
+  renderCustomTasks();
 }
 
 async function onWatchAdClick(){
@@ -1370,34 +1493,6 @@ async function refreshBalanceFromServer(){
   }catch(e){
     console.warn("Не удалось обновить баланс:", e.message);
   }
-}
-
-// Реальный обработчик события завершения задания от AdsGram.
-// event.detail может содержать доп. данные от них - пока не используем,
-// нам достаточно самого факта события, чтобы подтянуть баланс с сервера.
-async function onAdsgramTaskReward(event){
-  const hint = document.getElementById("taskAdHint");
-  hint.textContent = "Засчитываем…";
-
-  // Небольшая пауза, чтобы серверный постбэк от AdsGram успел долететь
-  // до нашего бэкенда раньше, чем мы запросим свежий баланс
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  await refreshBalanceFromServer();
-  renderTasks();
-
-  hint.textContent = "Готово! +1 💎";
-  safeAlert("Задание засчитано, спасибо!");
-}
-
-function onAdsgramTaskError(event){
-  console.warn("Ошибка задания AdsGram:", event.detail);
-  document.getElementById("taskAdHint").textContent = "Не удалось выполнить задание, попробуй ещё раз.";
-}
-
-const adsgramTaskEl = document.getElementById("adsgramTaskEl");
-if(adsgramTaskEl){
-  adsgramTaskEl.addEventListener("reward", onAdsgramTaskReward);
-  adsgramTaskEl.addEventListener("error", onAdsgramTaskError);
 }
 
 
