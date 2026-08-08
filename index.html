@@ -175,6 +175,30 @@
     color:var(--text);
     font-family:'Inter',sans-serif;
   }
+
+  /* Наши слоты вместо дефолтных go/claim/done у компонента AdsGram -
+     явная рамка, чтобы читалось как кликабельная кнопка, а не текст */
+  .adsgram-slot-btn{
+    border:1.5px solid var(--accent);
+    border-radius:100px;
+    padding:6px 16px;
+    font-size:12.5px;
+    font-weight:700;
+    color:var(--accent);
+    white-space:nowrap;
+    text-align:center;
+    background:rgba(184,169,240,0.10);
+  }
+  .adsgram-slot-btn--claim{
+    border-color:var(--fire);
+    color:#FFD36E;
+    background:rgba(232,84,58,0.14);
+  }
+  .adsgram-slot-btn--done{
+    border-color:var(--earth);
+    color:var(--earth);
+    background:rgba(127,176,105,0.14);
+  }
 </style>
 </head>
 <body>
@@ -337,7 +361,11 @@
           <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за выполнение</p>
         </div>
       </div>
-      <adsgram-task data-block-id="task-41494" data-debug="true" id="adsgramTaskEl" style="display:block; margin-top:12px;"></adsgram-task>
+      <adsgram-task data-block-id="task-41494" data-debug="true" id="adsgramTaskEl" style="display:block; margin-top:12px;">
+        <div slot="button" class="adsgram-slot-btn">Перейти</div>
+        <div slot="claim" class="adsgram-slot-btn adsgram-slot-btn--claim">Забрать</div>
+        <div slot="done" class="adsgram-slot-btn adsgram-slot-btn--done">Готово</div>
+      </adsgram-task>
       <p class="muted" id="taskAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
     </div>
 
