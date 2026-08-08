@@ -280,16 +280,52 @@
     </div>
   </div>
 
-  <!-- ПРОФИЛЬ -->
-  <div class="view" id="view-profile">
-    <h2 style="margin-bottom:6px;">Твой портрет</h2>
-    <p class="muted" id="profileSummary">Пройди первый тест, чтобы увидеть свой профиль.</p>
-    <div class="bars" id="profileBars"></div>
-    <div class="card" style="margin-top:16px;">
-      <h2 style="font-size:16px;">Статистика</h2>
-      <p class="muted" style="margin-top:6px;">Тестов пройдено: <b id="statTests" style="color:var(--text);">0</b></p>
-      <p class="muted">Дней подряд: <b id="statStreak" style="color:var(--text);">0</b></p>
+  <!-- ЗАДАНИЯ -->
+  <div class="view" id="view-tasks">
+    <h2 style="margin-bottom:6px;">Задания</h2>
+    <p class="muted">Выполняй задания — получай алмазики. До 20 в день.</p>
+
+    <div class="card" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <p class="muted" style="margin:0;">Твой баланс</p>
+        <p style="margin:2px 0 0; font-size:28px; font-weight:700;">💎 <span id="diamondsBalance">0</span></p>
+      </div>
+      <div style="text-align:right;">
+        <p class="muted" style="margin:0; font-size:12px;">Осталось сегодня</p>
+        <p style="margin:2px 0 0; font-size:18px; font-weight:600;" id="adViewsRemainingText">20/20</p>
+      </div>
     </div>
+
+    <!-- РЕАЛЬНАЯ карточка - формат Reward/RewardedVideo через AdsGram -->
+    <div class="card" id="watchAdCard" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="font-size:32px;">📺</div>
+        <div style="flex:1;">
+          <p style="margin:0; font-weight:600;">Посмотреть рекламу</p>
+          <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за просмотр</p>
+        </div>
+      </div>
+      <button id="watchAdBtn" style="width:100%; margin-top:12px;">Смотреть</button>
+      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
+    </div>
+
+    <!-- ЗАГЛУШКА - формат Task (подписаться/перейти), ждём отдельный block-id -->
+    <div class="card" id="taskAdCard" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="font-size:32px;">📋</div>
+        <div style="flex:1;">
+          <p style="margin:0; font-weight:600;">Задание от рекламодателя</p>
+          <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за выполнение</p>
+        </div>
+      </div>
+      <button id="taskStartBtn" style="width:100%; margin-top:12px;">Выполнить</button>
+      <button id="taskCheckBtn" style="width:100%; margin-top:12px; display:none;">Проверить</button>
+      <p class="muted" id="taskAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
+    </div>
+
+    <p class="muted" style="margin-top:18px; font-size:12px; text-align:center;">
+      Новые задания появятся здесь позже.
+    </p>
   </div>
 
 </div>
@@ -300,9 +336,11 @@
     <button class="tab-btn" data-view="fun"><span class="ic">🎈</span>Развлечения</button>
     <button class="tab-btn" data-view="archive"><span class="ic">📁</span>Архив</button>
     <button class="tab-btn" data-view="friends"><span class="ic">👥</span>Друзья</button>
-    <button class="tab-btn" data-view="profile"><span class="ic">👤</span>Профиль</button>
+    <button class="tab-btn" data-view="tasks"><span class="ic">💎</span>Задания</button>
   </div>
 </div>
+
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
 <script>
 const BOT_USERNAME = "zerkalodnya_bot"; // например "zerkalo_dnya_bot", без @
@@ -438,7 +476,7 @@ function canPlayTest(idx){
 function isTestUnlocked(idx){
   if(state.isPro) return true;
   if(FREE_FOREVER_IDX.includes(idx)) return true;
-  if(idx === state.todayTestIdx && state.todayTestDate === todayStr()) return true;
+  if(idx === pickTodayTestIdx()) return true;
   return false;
 }
 
@@ -451,11 +489,11 @@ let state = {
   referredUsed:false,
   archiveBonusDays:0,
   isPro:false,
-  todayTestIdx:null,
-  todayTestDate:null,
   dailyDoneDate:null,   // когда был пройден именно тест дня
   dailyResult:null,     // его результат, чтобы показать повторно
-  gamePoints:0          // накопленные очки TowerBlock (500 = разовое открытие теста)
+  gamePoints:0,         // накопленные очки TowerBlock (500 = разовое открытие теста)
+  diamonds:0,           // алмазики за задания (AdsGram)
+  adViewsRemaining:20   // сколько заданий/просмотров осталось сегодня
 };
 
 async function loadState(){
@@ -618,7 +656,7 @@ function onStartBtn(){
 }
 
 function openDailyResult(){
-  const idx = state.todayTestIdx;
+  const idx = pickTodayTestIdx();
   if(idx === null || !TESTS[idx] || !state.dailyResult) return;
   if(!TESTS[idx].archetypes[state.dailyResult]) return;
   currentTestIdx = idx;
@@ -705,8 +743,7 @@ async function finishQuiz(){
 
   /* Отметка «пройдено» и стрик считаются ТОЛЬКО по тесту дня.
      Бесплатные тесты из списка можно проходить сколько угодно раз. */
-  const isDaily = currentTestIdx === state.todayTestIdx
-                  && state.todayTestDate === todayStr()
+  const isDaily = currentTestIdx === pickTodayTestIdx()
                   && !FREE_FOREVER_IDX.includes(currentTestIdx);
 
   if(isDaily){
@@ -929,7 +966,7 @@ function renderCatalog(){
     return;
   }
 
-  const todayIdx = (state.todayTestDate === todayStr()) ? state.todayTestIdx : null;
+  const todayIdx = pickTodayTestIdx();
 
   const rest = TESTS.map((test, idx)=> ({test, idx})).filter(x=> x.idx !== todayIdx);
   const free = rest.filter(x=> FREE_FOREVER_IDX.includes(x.idx));
@@ -1068,6 +1105,8 @@ async function syncUser(){
     if(typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
     if(typeof data.bonusDays === "number") state.archiveBonusDays = data.bonusDays;
     if(typeof data.invitedCount === "number") state.invitedCount = data.invitedCount;
+    if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
+    if(typeof data.adViewsRemaining === "number") state.adViewsRemaining = data.adViewsRemaining;
   }catch(e){
     console.warn("Не удалось синхронизировать пользователя:", e.message);
   }
@@ -1132,45 +1171,144 @@ function renderFriends(){
   };
 }
 
-/* ================== ПРОФИЛЬ ================== */
-function renderProfile(){
-  const bars = document.getElementById("profileBars");
-  bars.innerHTML = "";
+/* ================== ЗАДАНИЯ ==================
+   Карточка "Посмотреть рекламу" - НАСТОЯЩАЯ, формат Reward/RewardedVideo
+   через AdsGram. Начисление алмаза происходит НЕ здесь и не по клику -
+   а на сервере, когда AdsGram сам подтвердит показ через постбэк на
+   /ads/adsgram-reward (см. server.js). Здесь мы только запускаем показ
+   и потом подтягиваем баланс с сервера, чтобы увидеть актуальное число.
 
-  const tally = {};
-  state.history.forEach(item=>{
-    const test = TESTS[item.testIdx];
-    if(!test || !test.archetypes || !test.archetypes[item.result]) return;
-    const key = item.testIdx+"|"+item.result;
-    if(!tally[key]) tally[key] = { count:0, test, resultKey:item.result };
-    tally[key].count++;
-  });
-  const entries = Object.values(tally).sort((x,y)=> y.count - x.count);
-  const totalPlayed = state.history.length;
+   Карточка "Задание от рекламодателя" - пока заглушка (формат Task,
+   ждём отдельный block-id от AdsGram), использует старый клиентский
+   /ads/watch - стоит заменить на такой же серверный постбэк, когда
+   дойдём до этого формата. */
 
-  if(entries.length === 0){
-    document.getElementById("profileSummary").textContent = "Пройди первый тест, чтобы увидеть свой профиль.";
+const ADSGRAM_BLOCK_ID = "task-41494"; 
+
+function renderTasks(){
+  document.getElementById("diamondsBalance").textContent = state.diamonds || 0;
+  const remaining = typeof state.adViewsRemaining === "number" ? state.adViewsRemaining : 20;
+  document.getElementById("adViewsRemainingText").textContent = `${remaining}/20`;
+
+  const watchBtn = document.getElementById("watchAdBtn");
+  const watchHint = document.getElementById("watchAdHint");
+  if(remaining <= 0){
+    watchBtn.disabled = true;
+    watchBtn.textContent = "Лимит на сегодня исчерпан";
+    watchHint.textContent = "Приходи завтра — счётчик обнулится в полночь.";
   } else {
-    const top = entries[0];
-    const a = top.test.archetypes[top.resultKey];
-    document.getElementById("profileSummary").innerHTML = `Чаще всего у тебя выпадает <b style="color:${a.color}">${a.emoji} ${a.name}</b> — в тесте «${top.test.title}».`;
+    watchBtn.disabled = false;
+    watchBtn.textContent = "Смотреть";
+    watchHint.textContent = "";
   }
 
-  entries.slice(0,5).forEach(entry=>{
-    const a = entry.test.archetypes[entry.resultKey];
-    const pct = totalPlayed ? Math.round((entry.count/totalPlayed)*100) : 0;
-    const row = document.createElement("div");
-    row.className = "bar-row";
-    row.innerHTML = `
-      <div class="lbl">${a.emoji} ${a.name}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${a.color};"></div></div>
-      <div class="bar-val">${pct}%</div>`;
-    bars.appendChild(row);
-  });
-
-  document.getElementById("statTests").textContent = state.history.length;
-  document.getElementById("statStreak").textContent = state.streak || 0;
+  const startBtn = document.getElementById("taskStartBtn");
+  const checkBtn = document.getElementById("taskCheckBtn");
+  const hint = document.getElementById("taskAdHint");
+  checkBtn.style.display = "none";
+  if(remaining <= 0){
+    startBtn.disabled = true;
+    startBtn.textContent = "Лимит на сегодня исчерпан";
+    hint.textContent = "";
+  } else {
+    startBtn.disabled = false;
+    startBtn.textContent = "Выполнить";
+    hint.textContent = "";
+  }
 }
+
+async function refreshBalanceFromServer(){
+  try{
+    const userId = currentUserId();
+    const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    const r = await fetch(`${BACKEND_URL}/sync-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, firstName: tgUser.first_name || null, username: tgUser.username || null })
+    });
+    const data = await r.json();
+    if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
+    if(typeof data.adViewsRemaining === "number") state.adViewsRemaining = data.adViewsRemaining;
+    await saveState();
+  }catch(e){
+    console.warn("Не удалось обновить баланс:", e.message);
+  }
+}
+
+async function onWatchAdClick(){
+  const btn = document.getElementById("watchAdBtn");
+  const hint = document.getElementById("watchAdHint");
+  btn.disabled = true;
+  hint.textContent = "Загрузка рекламы…";
+
+  try{
+    // ЗАМЕНИ этот блок кодом ИЗ ЛИЧНОГО КАБИНЕТА ADSGRAM (раздел твоего
+    // block-id -> Get code / готовый сниппет интеграции). Ориентировочно
+    // выглядит примерно так - сверься с их реальным примером кода:
+    //
+    //   const AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID });
+    //   await AdController.show();
+    //
+    await window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }).show();
+
+    hint.textContent = "Засчитываем…";
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    await refreshBalanceFromServer();
+    safeAlert("Спасибо за просмотр! Баланс обновлён.");
+  }catch(e){
+    console.warn("Реклама не показана или пропущена:", e);
+    hint.textContent = "Реклама не была досмотрена.";
+  }
+
+  renderTasks();
+}
+
+function onTaskStartClick(){
+  const startBtn = document.getElementById("taskStartBtn");
+  const checkBtn = document.getElementById("taskCheckBtn");
+  const hint = document.getElementById("taskAdHint");
+
+  startBtn.style.display = "none";
+  hint.textContent = "Задание пока не подключено (ждём отдельный block-id от AdsGram) — имитация…";
+
+  setTimeout(()=>{
+    checkBtn.style.display = "block";
+    hint.textContent = "Готово? Нажми «Проверить».";
+  }, 1500);
+}
+
+async function onTaskCheckClick(){
+  const checkBtn = document.getElementById("taskCheckBtn");
+  checkBtn.disabled = true;
+  try{
+    const userId = currentUserId();
+    const res = await fetch(`${BACKEND_URL}/ads/watch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId })
+    });
+    if(res.status === 429){
+      safeAlert("Дневной лимит уже исчерпан.");
+    } else if(!res.ok){
+      safeAlert("Не удалось начислить награду.");
+    } else {
+      const data = await res.json();
+      state.diamonds = data.diamonds;
+      state.adViewsRemaining = data.adViewsRemaining;
+      await saveState();
+      safeAlert("+1 💎 Задание засчитано!");
+    }
+  }catch(e){
+    console.warn("Ошибка зачёта задания:", e.message);
+  }
+  checkBtn.disabled = false;
+  document.getElementById("taskStartBtn").style.display = "block";
+  renderTasks();
+}
+
+document.getElementById("watchAdBtn").addEventListener("click", onWatchAdClick);
+document.getElementById("taskStartBtn").addEventListener("click", onTaskStartClick);
+document.getElementById("taskCheckBtn").addEventListener("click", onTaskCheckClick);
 
 /* ================== НАВИГАЦИЯ ================== */
 function switchView(name){
@@ -1180,7 +1318,7 @@ function switchView(name){
   document.querySelector(`.tab-btn[data-view="${name}"]`).classList.add("active");
   if(name==="archive") renderArchive();
   if(name==="friends") renderFriends();
-  if(name==="profile") renderProfile();
+  if(name==="tasks") renderTasks();
 }
 
 document.querySelectorAll(".tab-btn").forEach(btn=>{
