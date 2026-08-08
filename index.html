@@ -1368,6 +1368,16 @@ function renderCustomTasks(){
     const card = document.createElement("div");
     card.className = "card";
     card.style.marginTop = "14px";
+
+    const buttonsHtml = done
+      ? `
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <div class="btn secondary" style="flex:0.85; text-align:center; cursor:default;">Выполнено ✓</div>
+          <button class="btn" data-action="revisit" style="flex:1;">Перейти</button>
+        </div>
+      `
+      : `<button class="btn" data-action="claim" style="width:100%; margin-top:14px;">Перейти · +${CUSTOM_TASK_REWARD} 💎</button>`;
+
     card.innerHTML = `
       <div style="display:flex; align-items:center; gap:12px;">
         <div class="game-card-icon">${task.icon}</div>
@@ -1376,32 +1386,42 @@ function renderCustomTasks(){
           <p class="muted" style="margin:2px 0 0; font-size:13px;">${task.desc}</p>
         </div>
       </div>
-      <button class="btn ${done ? "secondary" : ""}" style="width:100%; margin-top:14px;" ${done ? "disabled" : ""}>
-        ${done ? "Выполнено ✓" : `Перейти · +${CUSTOM_TASK_REWARD} 💎`}
-      </button>
+      ${buttonsHtml}
     `;
-    if(!done){
-      card.querySelector("button").addEventListener("click", ()=> onCustomTaskClick(task, card.querySelector("button")));
+
+    const actionBtn = card.querySelector('[data-action="claim"]');
+    if(actionBtn){
+      actionBtn.addEventListener("click", ()=> onCustomTaskClick(task, actionBtn));
     }
+    const revisitBtn = card.querySelector('[data-action="revisit"]');
+    if(revisitBtn){
+      // Уже выполнено раньше - просто открываем ссылку ещё раз, без
+      // повторного запроса на сервер: награда уже выдана один раз и
+      // больше не выдаётся, это чисто "зайти снова", ничего не начисляя
+      revisitBtn.addEventListener("click", ()=> openTaskLink(task.url));
+    }
+
     wrap.appendChild(card);
   });
 }
 
-async function onCustomTaskClick(task, btn){
-  btn.disabled = true;
-
-  // Открываем ссылку - через Telegram, если это ссылка на бота/канал
+function openTaskLink(url){
   try{
-    if(tg && tg.openTelegramLink && /^https:\/\/(t\.me|telegram\.me)\//.test(task.url)){
-      tg.openTelegramLink(task.url);
+    if(tg && tg.openTelegramLink && /^https:\/\/(t\.me|telegram\.me)\//.test(url)){
+      tg.openTelegramLink(url);
     } else if(tg && tg.openLink){
-      tg.openLink(task.url);
+      tg.openLink(url);
     } else {
-      window.open(task.url, "_blank");
+      window.open(url, "_blank");
     }
   }catch(e){
     console.warn("Не удалось открыть ссылку задания:", e.message);
   }
+}
+
+async function onCustomTaskClick(task, btn){
+  btn.disabled = true;
+  openTaskLink(task.url);
 
   try{
     const userId = currentUserId();
@@ -1416,7 +1436,6 @@ async function onCustomTaskClick(task, btn){
       claimedCustomTaskIds.add(task.id);
       if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
       await saveState();
-      safeAlert(`+${CUSTOM_TASK_REWARD} 💎 Спасибо!`);
     } else if(data.alreadyClaimed){
       claimedCustomTaskIds.add(task.id); // уже забирал раньше, просто помечаем
     } else {
@@ -1466,7 +1485,10 @@ async function onWatchAdClick(){
     hint.textContent = "Засчитываем…";
     await new Promise(resolve => setTimeout(resolve, 1500));
     await refreshBalanceFromServer();
-    safeAlert("Спасибо за просмотр! Баланс обновлён.");
+    renderTasks();
+    hint.textContent = "Готово! +1 💎";
+    setTimeout(()=>{ if(hint.textContent === "Готово! +1 💎") hint.textContent = ""; }, 2500);
+    return;
   }catch(e){
     console.warn("Реклама не показана или пропущена:", e);
     hint.textContent = "Реклама не была досмотрена.";
