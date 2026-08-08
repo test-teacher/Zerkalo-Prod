@@ -199,6 +199,33 @@
     color:var(--earth);
     background:rgba(127,176,105,0.14);
   }
+
+  /* Меню выбора способа открыть закрытый тест */
+  .lock-menu-backdrop{
+    position:fixed; inset:0; z-index:60;
+    background:rgba(10,8,18,0.6); backdrop-filter:blur(4px);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  .lock-menu{
+    width:100%; max-width:480px;
+    background:var(--panel); border-radius:20px 20px 0 0;
+    padding:20px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .lock-menu h3{font-size:16px; margin-bottom:4px;}
+  .lock-menu p.muted{margin-bottom:16px;}
+  .lock-menu-option{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    width:100%; text-align:left;
+    background:var(--panel-2); border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px; padding:13px 16px; margin-bottom:9px;
+    color:var(--text); font-family:'Inter',sans-serif; font-size:14px; font-weight:600;
+  }
+  .lock-menu-option:disabled{opacity:0.4;}
+  .lock-menu-option .price{font-size:13px; font-weight:700; color:var(--accent); white-space:nowrap;}
+  .lock-menu-cancel{
+    width:100%; background:none; color:var(--text-dim);
+    font-family:'Inter',sans-serif; font-size:13px; padding:10px; margin-top:4px;
+  }
 </style>
 </head>
 <body>
@@ -258,7 +285,7 @@
 
     <div id="testListWrap" style="margin-top:22px;">
       <h2 style="font-size:17px;margin-bottom:6px;">Все тесты</h2>
-      <p class="muted" style="margin-bottom:14px;">🔓 — бесплатно и без ограничений. 🔒 — открывается через Pro.</p>
+      <p class="muted" style="margin-bottom:14px;">🔓 — бесплатно и без ограничений. 🔒 — открывается через Pro, или разово за 💎 алмазики/очки TowerBlock — жми на любой закрытый тест, чтобы увидеть варианты.</p>
       <div id="catalogList"></div>
     </div>
   </div>
@@ -350,9 +377,6 @@
       <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;">Нужен отдельный ID для видео-формата. А я в рот шатал щас создавать бота, писать его в адсграм, писать в него ссылку версела, писать токе бота ещё и так ещё и ещё так что утром вместе с тобой надо сесть, нагенерить, так что раньше времени не просите. Адсграмм тестовый потому что не сразу на баннер цепляет рекламу, а без этого я немог нормально стили прикинуть</p>
     </div>
 
-    <!-- РЕАЛЬНАЯ карточка - формат Task через настоящий веб-компонент AdsGram.
-         Кнопку/состояния рисует сам их компонент, мы только слушаем событие
-         "reward" чтобы обновить баланс после начисления на сервере. -->
     <div class="card" id="taskAdCard" style="margin-top:14px;">
       <div style="display:flex; align-items:center; gap:12px;">
         <div style="font-size:32px;">📋</div>
@@ -677,7 +701,7 @@ function startQuiz(idx, bypass){
   if(target === null || !TESTS[target]) return;
   if(!bypass && !canPlayTest(target)){
     if(!isTestUnlocked(target)){
-      safeAlert("Этот тест открывается через Pro.");
+      safeAlert("Этот тест закрыт — открой через Pro или разово за алмазики/очки TowerBlock.");
     } else {
       safeAlert("Тест дня уже пройден сегодня. Новый будет завтра — а тесты из списка ниже доступны всегда.");
     }
@@ -1040,44 +1064,11 @@ function renderCatalog(){
   });
 }
 
+const DIAMONDS_UNLOCK_COST = 5;
+
 function attemptPlayFromCatalog(idx){
   if(!isTestUnlocked(idx)){
-    if((state.gamePoints||0) >= GAME_POINTS_GOAL){
-      safeConfirm(
-        "У тебя " + state.gamePoints + " очков за игру TowerBlock. Открыть этот тест за " +
-        GAME_POINTS_GOAL + " очков — на одно прохождение?",
-        async (ok)=>{
-          if(ok){
-            const userId = currentUserId();
-            try{
-              const r = await fetch(`${BACKEND_URL}/game-points/spend`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId, amount: GAME_POINTS_GOAL })
-              });
-              if(r.status === 402){
-                alert("Не хватает очков - баланс на сервере уже изменился.");
-                await syncUser();
-                renderCatalog();
-                return;
-              }
-              const resData = await r.json();
-              if(typeof resData.gamePoints === "number") state.gamePoints = resData.gamePoints;
-            }catch(e){
-              console.warn("Не удалось списать очки на сервере:", e.message);
-              state.gamePoints -= GAME_POINTS_GOAL; // фолбэк, если сервер недоступен
-            }
-            saveState();
-            renderCatalog();
-            startQuiz(idx, true);
-          } else {
-            offerProPurchase();
-          }
-        }
-      );
-    } else {
-      offerProPurchase();
-    }
+    openLockMenu(idx);
     return;
   }
   if(!canPlayTest(idx)){
@@ -1085,6 +1076,93 @@ function attemptPlayFromCatalog(idx){
     return;
   }
   startQuiz(idx);
+}
+
+/* Меню выбора способа открыть закрытый тест: Pro-подписка, разово за очки
+   TowerBlock, разово за алмазики (AdsGram), или отмена. Ничего не покупает
+   само по себе - только показывает варианты и передаёт выбор дальше в уже
+   существующие функции (offerProPurchase, списание очков/алмазов). */
+function openLockMenu(idx){
+  const backdrop = document.createElement("div");
+  backdrop.className = "lock-menu-backdrop";
+
+  const points = state.gamePoints || 0;
+  const diamonds = state.diamonds || 0;
+  const canUsePoints = points >= GAME_POINTS_GOAL;
+  const canUseDiamonds = diamonds >= DIAMONDS_UNLOCK_COST;
+
+  backdrop.innerHTML = `
+    <div class="lock-menu">
+      <h3>Тест закрыт</h3>
+      <p class="muted">Открой Pro навсегда, или пройди этот тест один раз за накопленное.</p>
+      <button class="lock-menu-option" data-action="pro">
+        <span>⭐ Открыть все тесты (Pro)</span>
+        <span class="price">50 ⭐</span>
+      </button>
+      <button class="lock-menu-option" data-action="points" ${canUsePoints ? "" : "disabled"}>
+        <span>🎮 Пройти разово за очки TowerBlock</span>
+        <span class="price">${GAME_POINTS_GOAL} (есть ${points})</span>
+      </button>
+      <button class="lock-menu-option" data-action="diamonds" ${canUseDiamonds ? "" : "disabled"}>
+        <span>💎 Пройти разово за алмазики</span>
+        <span class="price">${DIAMONDS_UNLOCK_COST} (есть ${diamonds})</span>
+      </button>
+      <button class="lock-menu-cancel" data-action="cancel">Отмена</button>
+    </div>
+  `;
+
+  backdrop.addEventListener("click", async (e)=>{
+    if(e.target === backdrop){ document.body.removeChild(backdrop); return; }
+    const action = e.target.closest("[data-action]")?.dataset.action;
+    if(!action || action === "cancel"){
+      if(document.body.contains(backdrop)) document.body.removeChild(backdrop);
+      return;
+    }
+    document.body.removeChild(backdrop);
+
+    if(action === "pro"){
+      offerProPurchase();
+    } else if(action === "points"){
+      await spendAndUnlock(idx, "points");
+    } else if(action === "diamonds"){
+      await spendAndUnlock(idx, "diamonds");
+    }
+  });
+
+  document.body.appendChild(backdrop);
+}
+
+/* Списывает нужную валюту на сервере и, если получилось, сразу
+   запускает тест разово (bypass=true - не даёт постоянной разблокировки). */
+async function spendAndUnlock(idx, currency){
+  const userId = currentUserId();
+  const isPoints = currency === "points";
+  const endpoint = isPoints ? "/game-points/spend" : "/diamonds/spend";
+  const amount = isPoints ? GAME_POINTS_GOAL : DIAMONDS_UNLOCK_COST;
+
+  try{
+    const r = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, amount })
+    });
+    if(r.status === 402){
+      safeAlert("Не хватает баланса - он уже изменился на сервере.");
+      await syncUser();
+      renderCatalog();
+      return;
+    }
+    const data = await r.json();
+    if(isPoints && typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
+    if(!isPoints && typeof data.diamonds === "number") state.diamonds = data.diamonds;
+  }catch(e){
+    console.warn("Не удалось списать баланс на сервере:", e.message);
+    if(isPoints) state.gamePoints -= amount; else state.diamonds -= amount; // фолбэк, если сервер недоступен
+  }
+
+  await saveState();
+  renderCatalog();
+  startQuiz(idx, true);
 }
 
 function offerProPurchase(){
