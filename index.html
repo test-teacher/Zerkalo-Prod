@@ -37,6 +37,12 @@
   .streak{background:var(--panel);border-radius:100px;padding:6px 12px;font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:5px;}
   .streak b{color:var(--text);font-weight:700;}
 
+  .today-badge{
+    display:inline-block; margin-left:6px; padding:2px 8px; border-radius:100px;
+    font-size:10px; font-weight:700; background:rgba(184,169,240,0.22); color:var(--accent);
+    vertical-align:middle;
+  }
+
   .mirror-wrap{display:flex;justify-content:center;margin:22px 0 8px;}
   .mirror{
     width:150px;height:150px;border-radius:50%;
@@ -261,7 +267,7 @@
 
   <div class="top">
     <div class="brand"><h1>Зеркало дня</h1></div>
-    <div class="streak">🔥 <b id="streakVal">0</b> дней</div>
+    <div class="streak">💎 <b id="diamondsHeaderVal">0</b></div>
   </div>
 
   <div id="offlineBanner" class="banner" style="display:none;">
@@ -353,10 +359,8 @@
   <!-- АРХИВ -->
   <div class="view" id="view-archive">
     <h2 style="margin-bottom:14px;">Архив тестов</h2>
-    <p class="muted" style="margin-bottom:16px;">Бесплатно доступны последние 3 дня. Дальше — часть архива для Pro.</p>
-    <div id="archiveList"></div>
 
-    <div class="card" style="margin-top:8px;" id="proCard">
+    <div class="card" style="margin-bottom:16px;" id="proCard">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <h2 style="font-size:17px;">Полный архив и эксклюзивные тесты</h2>
         <span class="pro-tag">PRO</span>
@@ -369,6 +373,9 @@
         <a href="#" id="buyStarsLink">купить Stars</a>
       </div>
     </div>
+
+    <p class="muted" style="margin-bottom:16px;">Бесплатно доступны последние 3 дня. Дальше — часть архива для Pro.</p>
+    <div id="archiveList"></div>
   </div>
 
   <!-- ДРУЗЬЯ -->
@@ -706,7 +713,7 @@ function renderToday(){
 }
 
 function renderStreak(){
-  document.getElementById("streakVal").textContent = state.streak || 0;
+  document.getElementById("diamondsHeaderVal").textContent = state.diamonds || 0;
 }
 
 /* Три экрана внутри вкладки «Сегодня»:
@@ -1085,24 +1092,37 @@ function renderCatalog(){
   const free = rest.filter(x=> FREE_FOREVER_IDX.includes(x.idx));
   const locked = rest.filter(x=> !FREE_FOREVER_IDX.includes(x.idx));
 
-  [...free, ...locked].forEach(({test, idx})=>{
+  // Тест дня показываем в списке первым, с пометкой - но без подписки
+  // играть в него отсюда нельзя (только через карточку сверху), чтобы
+  // не плодить две разные точки входа в одно и то же прохождение
+  const todayEntry = (todayIdx !== null && TESTS[todayIdx])
+    ? [{ test: TESTS[todayIdx], idx: todayIdx, isToday: true }]
+    : [];
+
+  [...todayEntry, ...free, ...locked].forEach(({test, idx, isToday})=>{
     const unlocked = isTestUnlocked(idx);
     const isForever = FREE_FOREVER_IDX.includes(idx);
+    const disabledInList = isToday && !state.isPro;
 
     let statusIcon = "🔒", statusText = "Нужен Pro";
-    if(state.isPro){ statusIcon = "✨"; statusText = "Открыто (Pro)"; }
+    if(isToday){
+      statusIcon = "🌙";
+      statusText = state.isPro ? "Тест дня · доступен (Pro)" : "Тест дня · играй в карточке сверху";
+    } else if(state.isPro){ statusIcon = "✨"; statusText = "Открыто (Pro)"; }
     else if(isForever){ statusIcon = "🔓"; statusText = "Бесплатно всегда"; }
 
     const div = document.createElement("div");
-    div.className = "archive-item" + (unlocked ? "" : " locked");
-    div.style.cursor = "pointer";
+    div.className = "archive-item" + ((unlocked && !disabledInList) ? "" : " locked");
+    div.style.cursor = disabledInList ? "default" : "pointer";
     div.innerHTML = `
-      <div class="archive-emoji" style="background:rgba(184,169,240,0.2);">${unlocked ? statusIcon : "🔒"}</div>
+      <div class="archive-emoji" style="background:rgba(184,169,240,0.2);">${isToday ? "🌙" : (unlocked ? statusIcon : "🔒")}</div>
       <div class="meta">
-        <div class="t">${test.title}</div>
+        <div class="t">${test.title}${isToday ? '<span class="today-badge">Сегодня</span>' : ""}</div>
         <div class="d">${statusText}</div>
       </div>`;
-    div.onclick = ()=> attemptPlayFromCatalog(idx);
+    if(!disabledInList){
+      div.onclick = ()=> attemptPlayFromCatalog(idx);
+    }
     list.appendChild(div);
   });
 }
@@ -1192,6 +1212,7 @@ async function spendAndUnlock(idx){
   }
 
   await saveState();
+  renderStreak();
   renderCatalog();
   startQuiz(idx, true);
 }
@@ -1456,6 +1477,7 @@ async function onCustomTaskClick(task, btn){
     btn.disabled = false;
   }
 
+  renderStreak();
   renderTasks();
 }
 
@@ -1525,6 +1547,7 @@ async function refreshBalanceFromServer(){
     if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
     if(typeof data.adViewsRemaining === "number") state.adViewsRemaining = data.adViewsRemaining;
     await saveState();
+    renderStreak();
   }catch(e){
     console.warn("Не удалось обновить баланс:", e.message);
   }
@@ -1575,6 +1598,7 @@ async function onConvertPointsClick(){
     hint.textContent = "Не получилось, попробуй ещё раз.";
   }
 
+  renderStreak();
   renderConvertWidget();
 }
 
