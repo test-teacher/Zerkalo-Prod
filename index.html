@@ -58,9 +58,17 @@
     content:'';position:absolute;inset:-6px;border-radius:50%;
     border:1px solid rgba(255,255,255,0.08);
   }
-  #mirrorFace{display:inline-block; transition: transform .4s cubic-bezier(.34,1.56,.64,1);}
-  .mirror-face-pop{animation: faceReveal .45s cubic-bezier(.34,1.56,.64,1);}
-  @keyframes faceReveal{from{transform:scale(0.4) rotate(-25deg);opacity:0;}to{transform:scale(1) rotate(0);opacity:1;}}
+  /* Когда в зеркале показывается фото архетипа вместо смайлика -
+     растягиваем его как фон самого круга (тот же элемент, без вложенных
+     тегов), плюс лёгкий глянцевый блик поверх, чтобы читалось как
+     отражение в зеркале, а не просто круглая картинка */
+  .mirror--has-photo{background-size:cover; background-position:center;}
+  .mirror--has-photo::before{
+    content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 35%, transparent 70%, rgba(0,0,0,0.25) 100%);
+  }
+  .mirror-reveal{animation: mirrorReveal .45s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes mirrorReveal{from{transform:scale(0.85);opacity:0.35;}to{transform:scale(1);opacity:1;}}
 
   .card{background:var(--panel);border-radius:20px;padding:20px;margin-bottom:14px;}
   .card h2{font-size:19px;margin-bottom:8px;}
@@ -719,6 +727,27 @@ function renderMirror(color){
   m.style.setProperty("--glow", (color||"rgba(184,169,240,0.4)"));
 }
 
+// Показывает в зеркале либо фото архетипа (с рамкой-бликом, как отражение),
+// либо дефолтную луну, если результата ещё нет. Один и тот же элемент
+// используется и как круг зеркала, и как контейнер лица/фото - поэтому
+// картинка идёт через background-image, а не вложенный <img>.
+function setMirrorPhoto(imgUrl, color){
+  const m = document.getElementById("mirrorFace");
+  m.style.setProperty("--glow", color || "rgba(184,169,240,0.4)");
+  if(imgUrl){
+    m.style.backgroundImage = `url('${imgUrl}')`;
+    m.classList.add("mirror--has-photo");
+    m.textContent = "";
+  } else {
+    m.style.backgroundImage = "";
+    m.classList.remove("mirror--has-photo");
+    m.textContent = "🌙";
+  }
+  m.classList.remove("mirror-reveal");
+  void m.offsetWidth;
+  m.classList.add("mirror-reveal");
+}
+
 function renderToday(){
   const idx = pickTodayTestIdx();
   currentTestIdx = idx;
@@ -728,6 +757,7 @@ function renderToday(){
     document.getElementById("testTitle").textContent = "Тестов пока нет";
     document.getElementById("testDesc").textContent = "Скоро здесь появится тест дня — загляните позже.";
     document.getElementById("startBtn").style.display = "none";
+    setMirrorPhoto(null, null);
     renderCatalog();
     renderStreak();
     return;
@@ -742,11 +772,15 @@ function renderToday(){
     document.getElementById("testTitle").textContent = "Тест дня пройден";
     document.getElementById("testDesc").textContent = "Сегодня ты уже прошёл(а) тест. Новый будет завтра.";
     btn.textContent = "Посмотреть результат";
+    const a = test.archetypes[state.dailyResult];
+    if(a) setMirrorPhoto(a.img, a.color+"66");
+    else setMirrorPhoto(null, null);
   } else {
     document.getElementById("testTitle").textContent = test.title;
     document.getElementById("testDesc").textContent =
       test.q.length + " коротких вопросов — пара минут, и ты чуть лучше понимаешь себя сегодня.";
     btn.textContent = "Начать тест";
+    setMirrorPhoto(null, null);
   }
 
   renderCatalog();
@@ -968,12 +1002,7 @@ function showResult(resultKey, alreadyDone){
   document.getElementById("resultName").textContent = a.emoji+" "+a.name;
   document.getElementById("resultDesc").textContent = a.desc;
   document.getElementById("resultTip").textContent = "Совет на день: "+a.tip;
-  renderMirror(a.color+"66");
-  const face = document.getElementById("mirrorFace");
-  face.textContent = a.emoji;
-  face.classList.remove("mirror-face-pop");
-  void face.offsetWidth; // форсируем reflow, чтобы анимация проигралась заново
-  face.classList.add("mirror-face-pop");
+  setMirrorPhoto(a.img, a.color+"66");
 
   // Плавное появление карточки результата - переигрываем анимацию
   // на случай повторного захода на уже пройденный тест дня
