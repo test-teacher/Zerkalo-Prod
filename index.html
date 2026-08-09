@@ -765,6 +765,11 @@ function renderToday(){
 
   const test = TESTS[idx];
   const played = dailyDoneToday() && !state.isPro;
+  // Есть ли у меня результат ЗА СЕГОДНЯ вообще - не зависит от того,
+  // Pro я или нет. У Pro просто нет ограничения "уже нельзя пройти",
+  // но если тест дня уже пройден сегодня - зеркало всё равно должно
+  // показывать этот результат, а не сбрасываться на луну.
+  const hasResultToday = dailyDoneToday() && state.dailyResult && test.archetypes[state.dailyResult];
   const btn = document.getElementById("startBtn");
   btn.style.display = "block";
 
@@ -772,14 +777,17 @@ function renderToday(){
     document.getElementById("testTitle").textContent = "Тест дня пройден";
     document.getElementById("testDesc").textContent = "Сегодня ты уже прошёл(а) тест. Новый будет завтра.";
     btn.textContent = "Посмотреть результат";
-    const a = test.archetypes[state.dailyResult];
-    if(a) setMirrorPhoto(a.img, a.color+"66");
-    else setMirrorPhoto(null, null);
   } else {
     document.getElementById("testTitle").textContent = test.title;
     document.getElementById("testDesc").textContent =
       test.q.length + " коротких вопросов — пара минут, и ты чуть лучше понимаешь себя сегодня.";
-    btn.textContent = "Начать тест";
+    btn.textContent = hasResultToday ? "Пройти ещё раз" : "Начать тест";
+  }
+
+  if(hasResultToday){
+    const a = test.archetypes[state.dailyResult];
+    setMirrorPhoto(a.img, a.color+"66");
+  } else {
     setMirrorPhoto(null, null);
   }
 
