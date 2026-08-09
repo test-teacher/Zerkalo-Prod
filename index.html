@@ -419,7 +419,8 @@
       <button class="btn secondary" id="buyProBtn">Купить Pro за 50 ⭐</button>
       <div class="star-hint" id="buyStarsHint">
         💳 Нет звёзд на аккаунте? Можно купить без документов через СБП (Нужен VPN) —
-        <a href="#" id="buyStarsLink">купить Stars</a>
+        <a href="#" id="buyStarsLink">купить Stars</a>.
+        Без VPN — <a href="#" id="buyStarsLinkNoVpn">через split.tg</a>
       </div>
     </div>
 
@@ -1047,7 +1048,12 @@ function shareResult(){
   const test = TESTS[last.testIdx];
   if(!test) return;
   const a = test.archetypes[last.result];
-  const text = `Прошёл(а) тест "Зеркало дня" — мой архетип сегодня: ${a.emoji} ${a.name}. Попробуй тоже 👇`;
+  const tipLine = a.tip ? `💫 ${a.tip}\n\n` : "";
+  const text =
+    `🔮 Тест «Зеркало дня»\n\n` +
+    `${a.emoji} Мой архетип сегодня — ${a.name}\n\n` +
+    tipLine +
+    `Узнай свой архетип дня 👇`;
   const url = `https://t.me/${BOT_USERNAME}`;
   if(tg){
     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
@@ -1769,6 +1775,15 @@ document.getElementById("buyProBtn").addEventListener("click", buyPro);
 document.getElementById("buyStarsLink").addEventListener("click", (e)=>{
   e.preventDefault();
   const url = "https://spend.tg/?r=UQCFLtD55y34aA3neCaCv2HUmJYBv3KREcv42bfVH-PXZt7B";
+  if(tg && tg.openLink){
+    try{ tg.openLink(url); return; }catch(err){}
+  }
+  try{ window.open(url, "_blank"); }catch(err){}
+});
+
+document.getElementById("buyStarsLinkNoVpn").addEventListener("click", (e)=>{
+  e.preventDefault();
+  const url = "https://split.tg/?ref=UQCFLtD55y34aA3neCaCv2HUmJYBv3KREcv42bfVH-PXZt7B";
   if(tg && tg.openLink){
     try{ tg.openLink(url); return; }catch(err){}
   }
