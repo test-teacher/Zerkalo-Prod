@@ -66,6 +66,34 @@
   .btn.ghost{background:transparent;color:var(--text-dim);border:1px solid rgba(255,255,255,0.1);}
   .btn:disabled{opacity:0.4;cursor:default;}
 
+  /* Компактные карточки заданий - иконка+текст слева, маленькая кнопка справа,
+     вместо тяжёлого блока на всю ширину */
+  .task-row{
+    background:var(--panel); border-radius:16px; padding:13px 14px; margin-bottom:10px;
+    display:flex; align-items:center; gap:11px;
+  }
+  .task-row-icon{
+    width:38px; height:38px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:19px;
+    background:rgba(184,169,240,0.14);
+  }
+  .task-row-body{flex:1; min-width:0;}
+  .task-row-body .t{margin:0; font-size:13.5px; font-weight:600; line-height:1.3;}
+  .task-row-body .d{margin:2px 0 0; font-size:11.5px; color:var(--text-dim); line-height:1.35;}
+  .task-btn{
+    flex-shrink:0; border:none; cursor:pointer; white-space:nowrap;
+    padding:8px 15px; font-size:12.5px; font-weight:700; border-radius:999px;
+    background:var(--accent); color:#161228;
+    font-family:'Inter',sans-serif; transition:transform .15s ease, opacity .15s ease;
+  }
+  .task-btn:active{transform:scale(0.94);}
+  .task-btn.ghost{background:var(--panel-2); color:var(--text);}
+  .task-btn:disabled{opacity:0.45; cursor:default;}
+  .task-done-badge{
+    flex-shrink:0; font-size:11px; font-weight:700; color:var(--earth);
+    display:flex; align-items:center; gap:3px; white-space:nowrap;
+  }
+
   .q-progress{display:flex;gap:5px;margin-bottom:16px;}
   .q-progress span{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);}
   .q-progress span.done{background:var(--accent);}
@@ -285,7 +313,7 @@
 
     <div id="testListWrap" style="margin-top:22px;">
       <h2 style="font-size:17px;margin-bottom:6px;">Все тесты</h2>
-      <p class="muted" style="margin-bottom:14px;">🔓 — бесплатно и без ограничений. 🔒 — открывается через Pro, или разово за 💎 алмазики/очки TowerBlock — жми на любой закрытый тест, чтобы увидеть варианты.</p>
+      <p class="muted" style="margin-bottom:14px;">🔓 — бесплатно и без ограничений. 🔒 — открывается через Pro, или разово за 💎 алмазики — жми на любой закрытый тест, чтобы увидеть варианты.</p>
       <div id="catalogList"></div>
     </div>
   </div>
@@ -303,6 +331,16 @@
           <p class="muted" style="font-size:13px;">Складывай башню из блоков — чем точнее клик, тем выше счёт.</p>
         </div>
       </div>
+    </div>
+
+    <!-- Конвертация очков TowerBlock в алмазы: 100 очков -> 1 алмаз -->
+    <div class="task-row" style="margin-top:10px;">
+      <div class="task-row-icon">🔄</div>
+      <div class="task-row-body">
+        <p class="t">Обменять очки на алмазы</p>
+        <p class="d" id="convertHint">100 очков → 1 💎</p>
+      </div>
+      <button class="task-btn" id="convertPointsBtn">Обменять</button>
     </div>
   </div>
 
@@ -365,16 +403,13 @@
     </div>
 
     <!-- РЕАЛЬНАЯ карточка - формат Reward/RewardedVideo через AdController -->
-    <div class="card" id="watchAdCard" style="margin-top:14px;">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div class="game-card-icon">📺</div>
-        <div style="flex:1;">
-          <p style="margin:0; font-weight:600;">Посмотреть рекламу</p>
-          <p class="muted" style="margin:2px 0 0; font-size:13px;">+1 💎 за просмотр</p>
-        </div>
+    <div class="task-row" id="watchAdCard">
+      <div class="task-row-icon">📺</div>
+      <div class="task-row-body">
+        <p class="t">Посмотреть рекламу</p>
+        <p class="d" id="watchAdHint">+1 💎 за просмотр</p>
       </div>
-      <button class="btn" id="watchAdBtn" style="width:100%; margin-top:14px;">Смотреть</button>
-      <p class="muted" id="watchAdHint" style="margin:8px 0 0; font-size:12px; text-align:center;"></p>
+      <button class="task-btn" id="watchAdBtn">Смотреть</button>
     </div>
 
     <!-- Партнёрские задания - собственные ссылки, не через AdsGram.
@@ -1072,7 +1107,7 @@ function renderCatalog(){
   });
 }
 
-const DIAMONDS_UNLOCK_COST = 5;
+const DIAMONDS_UNLOCK_COST = 10;
 
 function attemptPlayFromCatalog(idx){
   if(!isTestUnlocked(idx)){
@@ -1086,30 +1121,23 @@ function attemptPlayFromCatalog(idx){
   startQuiz(idx);
 }
 
-/* Меню выбора способа открыть закрытый тест: Pro-подписка, разово за очки
-   TowerBlock, разово за алмазики (AdsGram), или отмена. Ничего не покупает
-   само по себе - только показывает варианты и передаёт выбор дальше в уже
-   существующие функции (offerProPurchase, списание очков/алмазов). */
+/* Меню выбора способа открыть закрытый тест: Pro-подписка или разово за
+   алмазики. Ничего не покупает само по себе - только показывает варианты
+   и передаёт выбор дальше в уже существующие функции. */
 function openLockMenu(idx){
   const backdrop = document.createElement("div");
   backdrop.className = "lock-menu-backdrop";
 
-  const points = state.gamePoints || 0;
   const diamonds = state.diamonds || 0;
-  const canUsePoints = points >= GAME_POINTS_GOAL;
   const canUseDiamonds = diamonds >= DIAMONDS_UNLOCK_COST;
 
   backdrop.innerHTML = `
     <div class="lock-menu">
       <h3>Тест закрыт</h3>
-      <p class="muted">Открой Pro навсегда, или пройди этот тест один раз за накопленное.</p>
+      <p class="muted">Открой Pro навсегда, или пройди этот тест один раз за алмазики.</p>
       <button class="lock-menu-option" data-action="pro">
         <span>⭐ Открыть все тесты (Pro)</span>
         <span class="price">50 ⭐</span>
-      </button>
-      <button class="lock-menu-option" data-action="points" ${canUsePoints ? "" : "disabled"}>
-        <span>🎮 Пройти разово за очки TowerBlock</span>
-        <span class="price">${GAME_POINTS_GOAL} (есть ${points})</span>
       </button>
       <button class="lock-menu-option" data-action="diamonds" ${canUseDiamonds ? "" : "disabled"}>
         <span>💎 Пройти разово за алмазики</span>
@@ -1130,42 +1158,37 @@ function openLockMenu(idx){
 
     if(action === "pro"){
       offerProPurchase();
-    } else if(action === "points"){
-      await spendAndUnlock(idx, "points");
     } else if(action === "diamonds"){
-      await spendAndUnlock(idx, "diamonds");
+      await spendAndUnlock(idx);
     }
   });
 
   document.body.appendChild(backdrop);
 }
 
-/* Списывает нужную валюту на сервере и, если получилось, сразу
-   запускает тест разово (bypass=true - не даёт постоянной разблокировки). */
-async function spendAndUnlock(idx, currency){
+/* Списывает алмазы на сервере и, если получилось, сразу запускает тест
+   разово (bypass=true - не даёт постоянной разблокировки). */
+async function spendAndUnlock(idx){
   const userId = currentUserId();
-  const isPoints = currency === "points";
-  const endpoint = isPoints ? "/game-points/spend" : "/diamonds/spend";
-  const amount = isPoints ? GAME_POINTS_GOAL : DIAMONDS_UNLOCK_COST;
+  const amount = DIAMONDS_UNLOCK_COST;
 
   try{
-    const r = await fetch(`${BACKEND_URL}${endpoint}`, {
+    const r = await fetch(`${BACKEND_URL}/diamonds/spend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, amount })
     });
     if(r.status === 402){
-      safeAlert("Не хватает баланса - он уже изменился на сервере.");
+      safeAlert("Не хватает алмазов - баланс уже изменился на сервере.");
       await syncUser();
       renderCatalog();
       return;
     }
     const data = await r.json();
-    if(isPoints && typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
-    if(!isPoints && typeof data.diamonds === "number") state.diamonds = data.diamonds;
+    if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
   }catch(e){
     console.warn("Не удалось списать баланс на сервере:", e.message);
-    if(isPoints) state.gamePoints -= amount; else state.diamonds -= amount; // фолбэк, если сервер недоступен
+    state.diamonds -= amount; // фолбэк, если сервер недоступен
   }
 
   await saveState();
@@ -1324,28 +1347,20 @@ const ADSGRAM_BLOCK_ID = "41908";
 // Партнёрские задания - собственные ссылки (не через AdsGram). id должен
 // быть стабильным и уникальным - именно по нему сервер помнит, что
 // награда уже выдана этому пользователю за это задание.
-const CUSTOM_TASKS = [
-  {
-    id: "honey_farm_bot",
-    icon: "🍯",
-    title: "Собирай мёд",
-    desc: "и обменивай его на удобную для себя валюту",
-    url: "https://t.me/Honey_FarmBot?start=122895"
-  },
-  {
-    id: "jacks_farm_bot",
-    icon: "🐄",
-    title: "Развивай ферму",
-    desc: "свою ферму животных",
-    url: "https://telegram.me/JacksFarm_bot?start=238312"
-  }
-  // Канал - добавь сюда, когда будет ссылка:
-  // { id: "our_channel", icon: "📢", title: "Подпишись на канал", desc: "и будь в курсе новостей", url: "https://t.me/..." }
-];
-const CUSTOM_TASK_REWARD = 5;
+let CUSTOM_TASKS = []; // заполняется с сервера, см. loadCustomTasksFromServer()
 
 let claimedCustomTaskIds = new Set();
 let customTasksLoaded = false;
+
+async function loadCustomTasksFromServer(){
+  try{
+    const res = await fetch(`${BACKEND_URL}/custom-tasks`);
+    const data = await res.json();
+    CUSTOM_TASKS = data.tasks || [];
+  }catch(e){
+    console.warn("Не удалось загрузить партнёрские задания:", e.message);
+  }
+}
 
 async function loadClaimedCustomTasks(){
   try{
@@ -1364,36 +1379,31 @@ function renderCustomTasks(){
   wrap.innerHTML = "";
 
   CUSTOM_TASKS.forEach(task=>{
-    const done = claimedCustomTaskIds.has(task.id);
-    const card = document.createElement("div");
-    card.className = "card";
-    card.style.marginTop = "14px";
+    const done = claimedCustomTaskIds.has(task.taskKey);
+    const row = document.createElement("div");
+    row.className = "task-row";
 
-    const buttonsHtml = done
+    const rightHtml = done
       ? `
-        <div style="display:flex; gap:8px; margin-top:14px;">
-          <div class="btn secondary" style="flex:0.85; text-align:center; cursor:default;">Выполнено ✓</div>
-          <button class="btn" data-action="revisit" style="flex:1;">Перейти</button>
-        </div>
+        <span class="task-done-badge">✓ Готово</span>
+        <button class="task-btn ghost" data-action="revisit">Перейти</button>
       `
-      : `<button class="btn" data-action="claim" style="width:100%; margin-top:14px;">Перейти · +${CUSTOM_TASK_REWARD} 💎</button>`;
+      : `<button class="task-btn" data-action="claim">Перейти · +${task.rewardDiamonds}💎</button>`;
 
-    card.innerHTML = `
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div class="game-card-icon">${task.icon}</div>
-        <div style="flex:1;">
-          <p style="margin:0; font-weight:600;">${task.title}</p>
-          <p class="muted" style="margin:2px 0 0; font-size:13px;">${task.desc}</p>
-        </div>
+    row.innerHTML = `
+      <div class="task-row-icon">${task.icon}</div>
+      <div class="task-row-body">
+        <p class="t">${task.title}</p>
+        <p class="d">${task.description}</p>
       </div>
-      ${buttonsHtml}
+      ${rightHtml}
     `;
 
-    const actionBtn = card.querySelector('[data-action="claim"]');
+    const actionBtn = row.querySelector('[data-action="claim"]');
     if(actionBtn){
       actionBtn.addEventListener("click", ()=> onCustomTaskClick(task, actionBtn));
     }
-    const revisitBtn = card.querySelector('[data-action="revisit"]');
+    const revisitBtn = row.querySelector('[data-action="revisit"]');
     if(revisitBtn){
       // Уже выполнено раньше - просто открываем ссылку ещё раз, без
       // повторного запроса на сервер: награда уже выдана один раз и
@@ -1401,7 +1411,7 @@ function renderCustomTasks(){
       revisitBtn.addEventListener("click", ()=> openTaskLink(task.url));
     }
 
-    wrap.appendChild(card);
+    wrap.appendChild(row);
   });
 }
 
@@ -1428,16 +1438,16 @@ async function onCustomTaskClick(task, btn){
     const r = await fetch(`${BACKEND_URL}/custom-tasks/claim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, taskId: task.id })
+      body: JSON.stringify({ userId, taskId: task.taskKey })
     });
     const data = await r.json();
 
     if(data.claimed){
-      claimedCustomTaskIds.add(task.id);
+      claimedCustomTaskIds.add(task.taskKey);
       if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
       await saveState();
     } else if(data.alreadyClaimed){
-      claimedCustomTaskIds.add(task.id); // уже забирал раньше, просто помечаем
+      claimedCustomTaskIds.add(task.taskKey); // уже забирал раньше, просто помечаем
     } else {
       btn.disabled = false;
     }
@@ -1458,14 +1468,17 @@ async function renderTasks(){
   const watchHint = document.getElementById("watchAdHint");
   if(remaining <= 0){
     watchBtn.disabled = true;
-    watchBtn.textContent = "Лимит на сегодня исчерпан";
+    watchBtn.textContent = "Лимит";
     watchHint.textContent = "Приходи завтра — счётчик обнулится в полночь.";
   } else {
     watchBtn.disabled = false;
     watchBtn.textContent = "Смотреть";
-    watchHint.textContent = "";
+    watchHint.textContent = "+1 💎 за просмотр";
   }
 
+  if(CUSTOM_TASKS.length === 0){
+    await loadCustomTasksFromServer();
+  }
   if(!customTasksLoaded){
     customTasksLoaded = true;
     await loadClaimedCustomTasks();
@@ -1487,7 +1500,7 @@ async function onWatchAdClick(){
     await refreshBalanceFromServer();
     renderTasks();
     hint.textContent = "Готово! +1 💎";
-    setTimeout(()=>{ if(hint.textContent === "Готово! +1 💎") hint.textContent = ""; }, 2500);
+    setTimeout(()=>{ if(hint.textContent === "Готово! +1 💎") renderTasks(); }, 2500);
     return;
   }catch(e){
     console.warn("Реклама не показана или пропущена:", e);
@@ -1517,6 +1530,56 @@ async function refreshBalanceFromServer(){
   }
 }
 
+const POINTS_PER_DIAMOND = 100;
+
+function renderConvertWidget(){
+  const btn = document.getElementById("convertPointsBtn");
+  const hint = document.getElementById("convertHint");
+  if(!btn || !hint) return;
+
+  const points = state.gamePoints || 0;
+  const convertible = Math.floor(points / POINTS_PER_DIAMOND);
+
+  if(convertible > 0){
+    btn.disabled = false;
+    hint.textContent = `У тебя ${points} очков — доступно к обмену: ${convertible} 💎`;
+  } else {
+    btn.disabled = true;
+    hint.textContent = `${POINTS_PER_DIAMOND} очков → 1 💎 (сейчас ${points})`;
+  }
+}
+
+async function onConvertPointsClick(){
+  const btn = document.getElementById("convertPointsBtn");
+  const hint = document.getElementById("convertHint");
+  btn.disabled = true;
+  hint.textContent = "Обмениваем…";
+
+  try{
+    const userId = currentUserId();
+    const r = await fetch(`${BACKEND_URL}/game-points/convert-to-diamonds`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId })
+    });
+    if(r.status === 402){
+      hint.textContent = "Недостаточно очков для обмена.";
+    } else {
+      const data = await r.json();
+      if(typeof data.gamePoints === "number") state.gamePoints = data.gamePoints;
+      if(typeof data.diamonds === "number") state.diamonds = data.diamonds;
+      await saveState();
+    }
+  }catch(e){
+    console.warn("Не удалось обменять очки:", e.message);
+    hint.textContent = "Не получилось, попробуй ещё раз.";
+  }
+
+  renderConvertWidget();
+}
+
+document.getElementById("convertPointsBtn").addEventListener("click", onConvertPointsClick);
+
 
 /* ================== НАВИГАЦИЯ ================== */
 function switchView(name){
@@ -1527,6 +1590,7 @@ function switchView(name){
   if(name==="archive") renderArchive();
   if(name==="friends") renderFriends();
   if(name==="tasks") renderTasks();
+  if(name==="fun") renderConvertWidget();
 }
 
 document.querySelectorAll(".tab-btn").forEach(btn=>{
@@ -1606,6 +1670,7 @@ window.addEventListener("message", (e)=>{
   try{ initTelegram(); }catch(e){ console.warn("initTelegram упал:", e); }
   try{ await loadTestsFromServer(); }catch(e){ console.warn("loadTestsFromServer упал:", e); }
   preloadTestImages(); // фоном, не ждём - картинки подтянутся пока юзер читает интро
+  loadCustomTasksFromServer().catch(e=> console.warn("loadCustomTasksFromServer упал:", e)); // тоже фоном
   try{ await loadState(); }catch(e){ console.warn("loadState упал:", e); }
   try{ await syncUser(); }catch(e){ console.warn("syncUser упал:", e); }
   try{ await handleReferral(); }catch(e){ console.warn("handleReferral упал:", e); }
