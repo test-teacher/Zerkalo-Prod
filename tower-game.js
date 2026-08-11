@@ -25,6 +25,18 @@ class Stage {
     this.renderer.setClearColor("#D0CBC7", 1);
     this.container.appendChild(this.renderer.domElement);
 
+    // Safari на iOS может принудительно "убить" WebGL-контекст под давлением
+    // памяти (типичная причина зависаний именно на iPhone). Без этого
+    // обработчика вкладка просто застывает намертво - с ним хотя бы можно
+    // корректно перезапустить игру вместо мёртвого чёрного экрана.
+    this.renderer.domElement.addEventListener("webglcontextlost", (e) => {
+      e.preventDefault();
+      console.warn("WebGL-контекст потерян, ожидаю восстановления...");
+    }, false);
+    this.renderer.domElement.addEventListener("webglcontextrestored", () => {
+      location.reload();
+    }, false);
+
     this.scene = new THREE.Scene();
 
     let aspect = window.innerWidth / window.innerHeight;
@@ -236,7 +248,11 @@ class Block {
   tick() {
     if (this.state == this.STATES.ACTIVE) {
       const currentTime = performance.now();
-      const deltaTime = (currentTime - this.lastTime) / 1000;
+      let deltaTime = (currentTime - this.lastTime) / 1000;
+      // Если кадр пришёл спустя большую паузу (свернули вкладку и
+      // вернулись, устройство подвисло на секунду) - не даём блоку
+      // одним скачком улететь далеко в сторону
+      if (deltaTime > 0.1) deltaTime = 0.1;
       this.lastTime = currentTime;
 
       let value = this.position[this.workingPlane];
@@ -331,7 +347,11 @@ class Game {
         z: 0,
         delay: (oldBlocks.length - i) * delayAmount,
         ease: Power1.easeIn,
-        onComplete: () => this.placedBlocks.remove(oldBlocks[i]),
+        onComplete: () => {
+          this.placedBlocks.remove(oldBlocks[i]);
+          if (oldBlocks[i].geometry) oldBlocks[i].geometry.dispose();
+          if (oldBlocks[i].material) oldBlocks[i].material.dispose();
+        },
       });
       TweenLite.to(oldBlocks[i].rotation, removeSpeed, {
         y: 0.5,
@@ -357,13 +377,20 @@ class Game {
     let currentBlock = this.blocks[this.blocks.length - 1];
     let newBlocks = currentBlock.place();
     this.newBlocks.remove(currentBlock.mesh);
+    // Геометрия исходного блока больше не используется - place() создал
+    // новые отдельные геометрии для placedMesh/choppedMesh. Материал НЕ
+    // освобождаем - он общий с этими новыми мешами, ещё пригодится.
+    if (currentBlock.mesh.geometry) currentBlock.mesh.geometry.dispose();
     if (newBlocks.placed) this.placedBlocks.add(newBlocks.placed);
     if (newBlocks.chopped) {
       this.choppedBlocks.add(newBlocks.chopped);
       let positionParams = {
         y: "-=30",
         ease: Power1.easeIn,
-        onComplete: () => this.choppedBlocks.remove(newBlocks.chopped),
+        onComplete: () => {
+          this.choppedBlocks.remove(newBlocks.chopped);
+          if (newBlocks.chopped.geometry) newBlocks.chopped.geometry.dispose();
+        },
       };
       let rotateRandomness = 10;
       let rotationParams = {
