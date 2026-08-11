@@ -166,6 +166,18 @@
     display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;
     padding:6px 10px;cursor:pointer;
   }
+
+  .profile-subtabs{
+    display:flex; gap:8px; background:var(--panel-2); border-radius:100px;
+    padding:4px; margin-bottom:18px;
+  }
+  .profile-subtab{
+    flex:1; background:none; border:none; padding:9px 0; border-radius:100px;
+    font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; color:var(--text-dim);
+    cursor:pointer; transition:background .2s ease, color .2s ease;
+  }
+  .profile-subtab.active{background:var(--accent); color:#161228;}
+  .profile-sub{animation:fadein .2s ease;}
   .tab-btn .ic{font-size:20px;display:inline-block;transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
   .tab-btn.active{color:var(--text);}
   .tab-btn.active .ic{transform:translateY(-2px) scale(1.15);}
@@ -406,40 +418,49 @@
   </div>
 
   <!-- АРХИВ -->
-  <div class="view" id="view-archive">
-    <h2 style="margin-bottom:14px;">Архив тестов</h2>
-
-    <div class="card" style="margin-bottom:16px;" id="proCard">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <h2 style="font-size:17px;">Полный архив и эксклюзивные тесты</h2>
-        <span class="pro-tag">PRO</span>
-      </div>
-      <p class="muted" id="proDesc">Открой безлимитный архив и закрытые тесты за Telegram Stars ⭐.</p>
-      <div style="height:10px;"></div>
-      <button class="btn secondary" id="buyProBtn">Купить Pro за 50 ⭐</button>
-      <div class="star-hint" id="buyStarsHint">
-        💳 Нет звёзд на аккаунте? Можно купить без документов через СБП (Нужен VPN) —
-        <a href="#" id="buyStarsLink">купить Stars</a>.
-        Без VPN — <a href="#" id="buyStarsLinkNoVpn">через split.tg</a>
-      </div>
+  <!-- ПРОФИЛЬ (Архив + Друзья объединены с переключателем) -->
+  <div class="view" id="view-profile">
+    <div class="profile-subtabs">
+      <button class="profile-subtab active" data-sub="archive">📁 Архив</button>
+      <button class="profile-subtab" data-sub="friends">👥 Друзья</button>
     </div>
 
-    <p class="muted" style="margin-bottom:16px;">Бесплатно доступны последние 3 дня. Дальше — часть архива для Pro.</p>
-    <div id="archiveList"></div>
-  </div>
+    <div class="profile-sub" id="profileSubArchive">
+      <div class="card" style="margin-bottom:16px;" id="proCard">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <h2 style="font-size:17px;">Полный архив и эксклюзивные тесты</h2>
+          <span class="pro-tag">PRO</span>
+        </div>
+        <p class="muted" id="proDesc">Открой безлимитный архив и закрытые тесты за Telegram Stars ⭐.</p>
+        <div style="height:10px;"></div>
+        <button class="btn secondary" id="buyProBtn">Купить Pro за 50 ⭐</button>
+        <div class="star-hint" id="buyStarsHint">
+          💳 Нет звёзд на аккаунте? Можно купить без документов через СБП (Нужен VPN) —
+          <a href="#" id="buyStarsLink">купить Stars</a>.
+          Без VPN — <a href="#" id="buyStarsLinkNoVpn">через split.tg</a>
+        </div>
+      </div>
 
-  <!-- ДРУЗЬЯ -->
-  <div class="view" id="view-friends">
-    <h2 style="margin-bottom:6px;">Приглашай друзей</h2>
-    <p class="muted">Отправь ссылку другу — когда он откроет приложение, вы оба получите бонус: +1 день к архиву без ограничений.</p>
-    <div class="ref-box" id="refLink">…</div>
-    <button class="btn" id="copyRefBtn">Скопировать ссылку</button>
-    <div style="height:10px;"></div>
-    <button class="btn secondary" id="shareRefBtn">Отправить другу в Telegram</button>
-    <div class="card" style="margin-top:16px;">
-      <h2 style="font-size:16px;">Приглашено друзей</h2>
-      <p style="font-size:32px;font-family:'Fraunces',serif;margin:6px 0;" id="invitedCount">0</p>
-      <p class="muted" style="font-size:12.5px;">Счётчик обновится, когда друг откроет приложение по вашей ссылке.</p>
+      <p class="muted" style="margin-bottom:16px;">Бесплатно доступны последние 3 дня. Дальше — часть архива для Pro. Жми на запись, чтобы посмотреть результат целиком.</p>
+      <div id="archiveList"></div>
+
+      <p class="muted" style="margin-top:20px; text-align:center; font-size:12px;">
+        По вопросам и сотрудничеству — <a href="https://t.me/kgosint" id="supportLink" style="color:var(--accent); text-decoration:none; font-weight:600;">@kgosint</a>
+      </p>
+    </div>
+
+    <div class="profile-sub" id="profileSubFriends" style="display:none;">
+      <h2 style="margin-bottom:6px;">Приглашай друзей</h2>
+      <p class="muted">Отправь ссылку другу — когда он откроет приложение, вы оба получите бонус: +1 день к архиву без ограничений.</p>
+      <div class="ref-box" id="refLink">…</div>
+      <button class="btn" id="copyRefBtn">Скопировать ссылку</button>
+      <div style="height:10px;"></div>
+      <button class="btn secondary" id="shareRefBtn">Отправить другу в Telegram</button>
+      <div class="card" style="margin-top:16px;">
+        <h2 style="font-size:16px;">Приглашено друзей</h2>
+        <p style="font-size:32px;font-family:'Fraunces',serif;margin:6px 0;" id="invitedCount">0</p>
+        <p class="muted" style="font-size:12.5px;">Счётчик обновится, когда друг откроет приложение по вашей ссылке.</p>
+      </div>
     </div>
   </div>
 
@@ -504,8 +525,7 @@
   <div class="tabbar-inner">
     <button class="tab-btn active" data-view="today"><span class="ic">🌙</span>Сегодня</button>
     <button class="tab-btn" data-view="fun"><span class="ic">🎈</span>Развлечения</button>
-    <button class="tab-btn" data-view="archive"><span class="ic">📁</span>Архив</button>
-    <button class="tab-btn" data-view="friends"><span class="ic">👥</span>Друзья</button>
+    <button class="tab-btn" data-view="profile"><span class="ic">👤</span>Профиль</button>
     <button class="tab-btn" data-view="tasks"><span class="ic">💎</span>Задания</button>
   </div>
 </div>
@@ -1363,7 +1383,7 @@ async function spendAndUnlock(idx){
 
 function offerProPurchase(){
   safeConfirm("Этот тест закрыт. Открыть все тесты за 50 ⭐?", (ok)=>{
-    if(ok) switchView("archive");
+    if(ok){ switchView("profile"); switchProfileSub("archive"); }
   });
 }
 
@@ -1389,14 +1409,29 @@ function renderArchive(){
     const locked = i >= freeDays;
     const div = document.createElement("div");
     div.className = "stagger-item archive-item" + (locked ? " locked" : "");
+    div.style.cursor = (locked || !a) ? "default" : "pointer";
     div.innerHTML = `
       <div class="archive-emoji" style="background:${a ? a.color+"33" : "rgba(184,169,240,0.2)"};">${locked ? "🔒" : (a ? a.emoji : "❔")}</div>
       <div class="meta">
         <div class="t">${locked ? "Заблокировано" : (test ? test.title : "Тест больше недоступен")}</div>
         <div class="d">${item.date}${(locked || !a) ? "" : " · "+a.name}</div>
       </div>`;
+    if(!locked && a){
+      div.onclick = ()=> openArchiveResult(item.testIdx, item.result);
+    }
     list.appendChild(div);
   });
+}
+
+// Открывает полный экран результата для ЛЮБОЙ записи из архива, не только
+// сегодняшней - переиспользует тот же showResult(), что и обычный
+// результат теста дня.
+function openArchiveResult(testIdx, resultKey){
+  const test = TESTS[testIdx];
+  if(!test || !test.archetypes[resultKey]) return;
+  currentTestIdx = testIdx;
+  setScreen("result");
+  showResult(resultKey, true);
 }
 
 /* ================== PRO / ОПЛАТА STARS ================== */
@@ -1755,11 +1790,22 @@ function switchView(name){
   document.getElementById("view-"+name).classList.add("active");
   document.querySelectorAll(".tab-btn").forEach(b=> b.classList.remove("active"));
   document.querySelector(`.tab-btn[data-view="${name}"]`).classList.add("active");
-  if(name==="archive") renderArchive();
-  if(name==="friends") renderFriends();
+  if(name==="profile"){ renderArchive(); renderFriends(); }
   if(name==="tasks") renderTasks();
   if(name==="fun") renderConvertWidget();
 }
+
+// Переключатель "Архив" / "Друзья" внутри вкладки Профиль - обе секции
+// уже отрендерены к этому моменту (switchView делает это заранее),
+// тут только показываем нужную и прячем вторую.
+function switchProfileSub(sub){
+  document.querySelectorAll(".profile-subtab").forEach(b=> b.classList.toggle("active", b.dataset.sub === sub));
+  document.getElementById("profileSubArchive").style.display = sub === "archive" ? "block" : "none";
+  document.getElementById("profileSubFriends").style.display = sub === "friends" ? "block" : "none";
+}
+document.querySelectorAll(".profile-subtab").forEach(btn=>{
+  btn.addEventListener("click", ()=> switchProfileSub(btn.dataset.sub));
+});
 
 document.querySelectorAll(".tab-btn").forEach(btn=>{
   btn.addEventListener("click", ()=> switchView(btn.dataset.view));
@@ -1786,6 +1832,15 @@ document.getElementById("buyStarsLinkNoVpn").addEventListener("click", (e)=>{
   const url = "https://split.tg/?ref=UQCFLtD55y34aA3neCaCv2HUmJYBv3KREcv42bfVH-PXZt7B";
   if(tg && tg.openLink){
     try{ tg.openLink(url); return; }catch(err){}
+  }
+  try{ window.open(url, "_blank"); }catch(err){}
+});
+
+document.getElementById("supportLink").addEventListener("click", (e)=>{
+  e.preventDefault();
+  const url = "https://t.me/kgosint";
+  if(tg && tg.openTelegramLink){
+    try{ tg.openTelegramLink(url); return; }catch(err){}
   }
   try{ window.open(url, "_blank"); }catch(err){}
 });
