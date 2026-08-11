@@ -922,9 +922,15 @@ function quizQuit(){
 function setImage(elId, src){
   const el = document.getElementById(elId);
   if(src){
+    // Прячем текущую картинку СРАЗУ (а не только меняем src) - иначе
+    // старая картинка остаётся видна, пока новая не докачается, и
+    // выглядит как будто "отстаёт" от смены вопроса
+    el.style.transition = "opacity .15s ease";
+    el.style.opacity = "0";
+    el.onload = ()=>{ el.style.opacity = "1"; };
+    el.onerror = ()=>{ el.style.display = "none"; };
     el.src = src;
     el.style.display = "block";
-    el.onerror = ()=>{ el.style.display = "none"; };
   } else {
     el.style.display = "none";
   }
@@ -946,6 +952,15 @@ function renderQuestion(){
   const qData = test.q[currentQ];
   document.getElementById("qText").textContent = qData.text;
   setImage("qImage", qData.img);
+
+  // Пока пользователь читает текущий вопрос - в фоне уже тянем картинку
+  // следующего. К моменту клика по ответу (там есть небольшая пауза на
+  // анимацию выбора) она с большой вероятностью уже будет в кэше браузера.
+  const nextQ = test.q[currentQ + 1];
+  if(nextQ && nextQ.img){
+    const preload = new Image();
+    preload.src = nextQ.img;
+  }
 
   const optWrap = document.getElementById("qOptions");
   optWrap.innerHTML = "";
