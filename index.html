@@ -112,6 +112,11 @@
     flex-shrink:0; font-size:11px; font-weight:700; color:var(--earth);
     display:flex; align-items:center; gap:3px; white-space:nowrap;
   }
+  .reward-badge{
+    display:inline-block; font-size:11px; font-weight:700; color:var(--accent);
+    background:rgba(184,169,240,0.16); border-radius:100px; padding:2px 8px;
+    vertical-align:middle; margin-left:2px;
+  }
 
   .q-progress{display:flex;gap:5px;margin-bottom:16px;}
   .q-progress span{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);transition:background .35s ease, transform .35s ease;}
@@ -218,6 +223,10 @@
   .archive-item .meta .t{font-size:14px;font-weight:600;}
   .archive-item .meta .d{font-size:12px;color:var(--text-dim);}
   .locked{filter:grayscale(1) brightness(0.6);position:relative;}
+  .archive-item.played{
+    background: rgba(127,176,105,0.14);
+    border: 1px solid rgba(127,176,105,0.35);
+  }
   .lock-icon{font-size:13px;}
 
   .bars{display:flex;flex-direction:column;gap:10px;margin-top:14px;}
@@ -466,8 +475,8 @@
 
   <!-- ЗАДАНИЯ -->
   <div class="view" id="view-tasks">
-    <h2 style="margin-bottom:6px;">Задания</h2>
-    <p class="muted">Выполняй задания — получай алмазики. До 20 в день.</p>
+    <h2 style="margin-bottom:6px;">Награды</h2>
+    <p class="muted">Смотри рекламу и выполняй задания — получай алмазики. До 20 в день.</p>
 
     <div class="card" style="margin-top:14px; display:flex; align-items:center; justify-content:space-between;">
       <div>
@@ -484,8 +493,8 @@
     <div class="task-row" id="watchAdCard">
       <div class="task-row-icon">📺</div>
       <div class="task-row-body">
-        <p class="t">Посмотреть рекламу</p>
-        <p class="d" id="watchAdHint">+1 💎 за просмотр</p>
+        <p class="t">Получить 💎1 за короткую рекламную интеграцию</p>
+        <p class="d" id="watchAdHint">Занимает меньше минуты</p>
       </div>
       <button class="task-btn" id="watchAdBtn">Смотреть</button>
     </div>
@@ -523,10 +532,10 @@
 
 <div class="tabbar">
   <div class="tabbar-inner">
-    <button class="tab-btn active" data-view="today"><span class="ic">🌙</span>Сегодня</button>
+    <button class="tab-btn active" data-view="today"><span class="ic">🌙</span>Задания</button>
     <button class="tab-btn" data-view="fun"><span class="ic">🎈</span>Развлечения</button>
     <button class="tab-btn" data-view="profile"><span class="ic">👤</span>Профиль</button>
-    <button class="tab-btn" data-view="tasks"><span class="ic">💎</span>Задания</button>
+    <button class="tab-btn" data-view="tasks"><span class="ic">💎</span>Награды</button>
   </div>
 </div>
 
@@ -1267,6 +1276,10 @@ function renderCatalog(){
 
   const todayIdx = pickTodayTestIdx();
 
+  // Какие тесты пользователь уже проходил хотя бы раз - для подсветки
+  // строки в списке, чтобы не приходилось запоминать самому
+  const playedIdxSet = new Set(state.history.map(h => h.testIdx));
+
   const rest = TESTS.map((test, idx)=> ({test, idx})).filter(x=> x.idx !== todayIdx);
   const free = rest.filter(x=> FREE_FOREVER_IDX.includes(x.idx));
   const locked = rest.filter(x=> !FREE_FOREVER_IDX.includes(x.idx));
@@ -1282,6 +1295,7 @@ function renderCatalog(){
     const unlocked = isTestUnlocked(idx);
     const isForever = FREE_FOREVER_IDX.includes(idx);
     const disabledInList = isToday && !state.isPro;
+    const played = playedIdxSet.has(idx);
 
     let statusIcon = "🔒", statusText = "Нужен Pro";
     if(isToday){
@@ -1290,8 +1304,12 @@ function renderCatalog(){
     } else if(state.isPro){ statusIcon = "✨"; statusText = "Открыто (Pro)"; }
     else if(isForever){ statusIcon = "🔓"; statusText = "Бесплатно всегда"; }
 
+    if(played) statusText += " · пройден";
+
     const div = document.createElement("div");
-    div.className = "stagger-item archive-item" + ((unlocked && !disabledInList) ? "" : " locked");
+    div.className = "stagger-item archive-item"
+      + ((unlocked && !disabledInList) ? "" : " locked")
+      + (played ? " played" : "");
     div.style.cursor = disabledInList ? "default" : "pointer";
     div.innerHTML = `
       <div class="archive-emoji" style="background:rgba(184,169,240,0.2);">${isToday ? "🌙" : (unlocked ? statusIcon : "🔒")}</div>
@@ -1603,12 +1621,12 @@ function renderCustomTasks(){
         <span class="task-done-badge">✓ Готово</span>
         <button class="task-btn ghost" data-action="revisit">Перейти</button>
       `
-      : `<button class="task-btn" data-action="claim">Перейти · +${task.rewardDiamonds}💎</button>`;
+      : `<button class="task-btn" data-action="claim">Перейти</button>`;
 
     row.innerHTML = `
       <div class="task-row-icon">${task.icon}</div>
       <div class="task-row-body">
-        <p class="t">${task.title}</p>
+        <p class="t">${task.title} <span class="reward-badge">+${task.rewardDiamonds}💎</span></p>
         <p class="d">${task.description}</p>
       </div>
       ${rightHtml}
@@ -1689,7 +1707,7 @@ async function renderTasks(){
   } else {
     watchBtn.disabled = false;
     watchBtn.textContent = "Смотреть";
-    watchHint.textContent = "+1 💎 за просмотр";
+    watchHint.textContent = "Занимает меньше минуты";
   }
 
   if(CUSTOM_TASKS.length === 0){
