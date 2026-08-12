@@ -240,6 +240,10 @@
     background-color:rgba(184,169,240,0.16);
     display:flex;align-items:center;justify-content:center;font-size:30px;
   }
+  .catalog-card .cover.placeholder{
+    font-size:32px;
+    filter:drop-shadow(0 0 10px rgba(184,169,240,0.35));
+  }
   .catalog-card .body{padding:9px 10px 11px;}
   .catalog-card .body .t{font-size:12.5px;font-weight:600;line-height:1.3;margin-bottom:3px;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
@@ -1309,6 +1313,17 @@ async function shareResultImage(){
 }
 
 /* ================== СПИСОК ВСЕХ ТЕСТОВ (сетка карточек) ================== */
+
+// Ищет самую последнюю запись прохождения конкретного теста в истории -
+// нужно, чтобы показать на обложке карточки именно ТОТ результат,
+// который реально выпал пользователю, а не случайный архетип
+function getPlayedResultForTest(idx){
+  for(let i = state.history.length - 1; i >= 0; i--){
+    if(state.history[i].testIdx === idx) return state.history[i].result;
+  }
+  return null;
+}
+
 function renderCatalog(){
   const list = document.getElementById("catalogList");
   if(!list) return;
@@ -1362,14 +1377,19 @@ function renderCatalog(){
     } else if(state.isPro){ statusIcon = "✨"; statusText = "Открыто (Pro)"; }
     else if(isForever){ statusIcon = "🔓"; statusText = "Бесплатно всегда"; }
 
-    // Обложка карточки - картинка fallback-архетипа (он гарантированно
-    // существует у любого валидного теста), если картинки нет - просто
-    // показываем крупный эмодзи-статус на цветном фоне
-    const fallbackArchetype = test.archetypes ? test.archetypes[test.fallback] : null;
-    const coverImg = fallbackArchetype && fallbackArchetype.img;
+    // Обложка карточки: до прохождения - стилизованная луна (в духе
+    // самого зеркала), после - фото АРХЕТИПА, который реально выпал
+    // пользователю (не фиксированный fallback, а конкретный его результат)
+    let coverImg = null;
+    if(played){
+      const resultKey = getPlayedResultForTest(idx);
+      const resultArchetype = resultKey && test.archetypes ? test.archetypes[resultKey] : null;
+      if(resultArchetype && resultArchetype.img) coverImg = resultArchetype.img;
+    }
+    const placeholderIcon = (unlocked && !disabledInList) ? "🌙" : "🔒";
     const coverStyle = coverImg
       ? `background-image:url('${coverImg}')`
-      : `background-color:rgba(184,169,240,0.16)`;
+      : `background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.18), transparent 55%), var(--panel-2);`;
 
     const card = document.createElement("div");
     card.className = "stagger-item catalog-card"
@@ -1377,7 +1397,7 @@ function renderCatalog(){
       + (played ? " played" : "");
     card.style.cursor = disabledInList ? "default" : "pointer";
     card.innerHTML = `
-      <div class="cover" style="${coverStyle}">${coverImg ? "" : (isToday ? "🌙" : (unlocked ? statusIcon : "🔒"))}</div>
+      <div class="cover${coverImg ? "" : " placeholder"}" style="${coverStyle}">${coverImg ? "" : placeholderIcon}</div>
       ${isToday ? '<span class="today-pill">Сегодня</span>' : ""}
       ${played ? '<span class="played-badge">✓</span>' : ""}
       <div class="body">
