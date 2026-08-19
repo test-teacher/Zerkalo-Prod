@@ -317,6 +317,17 @@ class Game {
         window.game.onAction();
       });
     }
+
+    // Клик-слой выключается (pointer-events:none) на экране "игра
+    // окончена" - чтобы кнопки под ним были кликабельны без гадания с
+    // z-index. Вместо него "тап в любое место = рестарт" теперь ловит
+    // сам контейнер - но сработает, только если клик НЕ был остановлен
+    // кнопкой (у всех кнопок панели уже стоит stopPropagation).
+    this.mainContainer.addEventListener("click", (e) => {
+      if (this.state === this.STATES.ENDED) {
+        this.restartGame();
+      }
+    });
   }
   updateState(newState) {
     for (let key in this.STATES)

@@ -27,10 +27,7 @@
 
       <div class="go-panel">
         <button id="continueBtn" class="go-btn go-btn--primary">Продолжить · 1 💎</button>
-        <div class="go-points-row">
-          <button id="takePointsBtn" class="go-btn go-btn--ghost">Забрать 🏆</button>
-          <button id="doublePointsBtn" class="go-btn go-btn--accent">×2 за рекламу</button>
-        </div>
+        <button id="doublePointsBtn" class="go-btn go-btn--accent">×2 очков за рекламу</button>
       </div>
 
       <p class="go-hint">Нажмите на экран, чтобы начать заново</p>
@@ -78,15 +75,11 @@
         // алмазов - тут просто возвращаем кнопку в исходное состояние
       }
       if (data.type === "towerbloxx:pointsResult") {
-        const takeBtn = document.getElementById("takePointsBtn");
+        // Ответ именно на бонус за рекламу - базовые очки начисляются
+        // тихо в фоне и подтверждения не требуют
         const doubleBtn = document.getElementById("doublePointsBtn");
-        if (data.ok) {
-          takeBtn.textContent = `Забрано: ${data.credited} 🏆`;
-          doubleBtn.textContent = "×2 за рекламу";
-        } else {
-          takeBtn.disabled = false;
-          doubleBtn.disabled = earnedPointsThisRound < 10;
-        }
+        const bonus = Number(data.credited) || 0;
+        doubleBtn.textContent = bonus > 0 ? `+${bonus} 🏆 получено` : "Реклама не досмотрена";
       }
     });
 
@@ -102,49 +95,49 @@
       } catch (err) {}
     });
 
-    // Счёт текущего проигрыша - обновляется при каждом завершении игры,
-    // используется чтобы не дать забрать очки дважды за одну попытку и
-    // чтобы отключить "×2 за рекламу", если очков меньше 10 (то есть
-    // ничего не начислилось бы всё равно)
+    // Счёт текущего проигрыша - обновляется при каждом завершении игры
     let earnedPointsThisRound = 0;
-    let pointsClaimedThisRound = false;
 
     window.addEventListener("towerbloxx:localgameover", (e) => {
       const { score, earnedPoints } = e.detail || {};
       earnedPointsThisRound = earnedPoints || 0;
-      pointsClaimedThisRound = false;
 
       document.getElementById("scoreSummary").textContent = `Счёт: ${score}`;
 
-      const takeBtn = document.getElementById("takePointsBtn");
       const doubleBtn = document.getElementById("doublePointsBtn");
-      takeBtn.disabled = earnedPointsThisRound <= 0;
-      doubleBtn.disabled = earnedPointsThisRound < 10;
-      takeBtn.textContent = "Забрать 🏆";
-      doubleBtn.textContent = "×2 за рекламу";
-    });
+      if (earnedPointsThisRound >= 10) {
+        doubleBtn.style.display = "";
+        doubleBtn.disabled = false;
+        doubleBtn.textContent = "×2 очков за рекламу";
+      } else {
+        // Отдельной кнопки "Забрать" больше нет - если начислять нечего
+        // или сумма меньше 10, кнопку бонуса просто прячем целиком
+        doubleBtn.style.display = "none";
+      }
 
-    function claimPoints(messageType, btnClicked){
-      if (pointsClaimedThisRound || earnedPointsThisRound <= 0) return;
-      pointsClaimedThisRound = true;
-      document.getElementById("takePointsBtn").disabled = true;
-      document.getElementById("doublePointsBtn").disabled = true;
-      btnClicked.textContent = messageType === "towerbloxx:doublePoints" ? "Смотрим рекламу…" : "Начисляем…";
-      try {
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({ type: messageType, amount: earnedPointsThisRound }, "*");
-        }
-      } catch (err) {}
-    }
-
-    document.getElementById("takePointsBtn").addEventListener("click", (e) => {
-      e.stopPropagation();
-      claimPoints("towerbloxx:takePoints", e.currentTarget);
+      // Базовые очки начисляются сразу и тихо, без отдельной кнопки -
+      // и продолжение игры, и рестарт всё равно не должны "сжигать"
+      // уже заработанное
+      if (earnedPointsThisRound > 0) {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: "towerbloxx:takePoints", amount: earnedPointsThisRound }, "*");
+          }
+        } catch (err) {}
+      }
     });
 
     document.getElementById("doublePointsBtn").addEventListener("click", (e) => {
       e.stopPropagation();
-      claimPoints("towerbloxx:doublePoints", e.currentTarget);
+      const btn = e.currentTarget;
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = "Смотрим рекламу…";
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "towerbloxx:doublePoints", amount: earnedPointsThisRound }, "*");
+        }
+      } catch (err) {}
     });
 
     document.getElementById("closeGameBtn").addEventListener("click", (e) => {

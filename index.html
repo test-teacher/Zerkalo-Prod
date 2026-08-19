@@ -2017,28 +2017,27 @@ window.addEventListener("message", (e)=>{
       }
     })();
   }
-  // Кнопки "Забрать очки" / "×2 за рекламу" теперь живут прямо в
-  // интерфейсе самой игры (tower-game.html) - сюда прилетает уже готовое
-  // решение пользователя вместе с суммой, которую игра сама посчитала
+  // Базовые очки игра теперь начисляет сама, тихо, сразу при завершении -
+  // отдельной кнопки для этого больше нет, поэтому и ответ ей не нужен
   if(data.type === "towerbloxx:takePoints"){
     const amount = Math.max(0, Math.floor(Number(data.amount) || 0));
-    (async ()=>{
-      await creditTowerPoints(amount);
-      sendPointsResultToGame(true, amount);
-    })();
+    creditTowerPoints(amount);
   }
+  // "×2 за рекламу" - опциональная НАДБАВКА поверх уже тихо начисленной
+  // базы (см. towerbloxx:takePoints выше), поэтому тут начисляем именно
+  // amount (тот же earnedPoints), а не amount*2 - иначе база задвоилась бы
   if(data.type === "towerbloxx:doublePoints"){
     const amount = Math.max(0, Math.floor(Number(data.amount) || 0));
     (async ()=>{
-      let credited = amount;
+      let bonus = 0;
       try{
         await window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }).show();
-        credited = amount * 2;
+        bonus = amount;
       }catch(err){
-        console.warn("Реклама не досмотрена, начисляем базовые очки:", err);
+        console.warn("Реклама не досмотрена, бонус не начисляется:", err);
       }
-      await creditTowerPoints(credited);
-      sendPointsResultToGame(true, credited);
+      if(bonus > 0) await creditTowerPoints(bonus);
+      sendPointsResultToGame(true, bonus);
     })();
   }
 });
