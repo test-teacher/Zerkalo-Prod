@@ -1986,10 +1986,6 @@ window.addEventListener("message", (e)=>{
   if(data.type === "towerbloxx:close"){
     closeTowerGame();
   }
-  if(data.type === "towerbloxx:gameover"){
-    const earned = Number(data.earnedPoints) || 0;
-    if(earned > 0) offerPointsChoice(earned);
-  }
   if(data.type === "towerbloxx:continueRequest"){
     (async ()=>{
       const frame = document.getElementById("towerFrame");
@@ -2021,55 +2017,39 @@ window.addEventListener("message", (e)=>{
       }
     })();
   }
-});
-
-/* Меню после проигрыша в TowerBlock: забрать очки как есть, или
-   посмотреть рекламу и получить вдвое больше. Тот же паттерн нижнего
-   листа, что и у меню разблокировки теста (openLockMenu). Закрытие мимо
-   кнопок (клик по фону) не должно "сжигать" уже заработанные очки -
-   в этом случае просто начисляем базовую сумму. */
-function offerPointsChoice(earned){
-  const backdrop = document.createElement("div");
-  backdrop.className = "lock-menu-backdrop";
-  backdrop.innerHTML = `
-    <div class="lock-menu">
-      <h3>Игра окончена!</h3>
-      <p class="muted">Ты набрал(а) 🏆 ${earned}. Забрать как есть, или удвоить за рекламу?</p>
-      <button class="lock-menu-option" data-action="take">
-        <span>🏆 Забрать очки</span>
-        <span class="price">${earned}</span>
-      </button>
-      <button class="lock-menu-option" data-action="double">
-        <span>📺 Посмотреть рекламу</span>
-        <span class="price">×2 = ${earned * 2}</span>
-      </button>
-    </div>
-  `;
-
-  backdrop.addEventListener("click", async (e)=>{
-    if(e.target === backdrop){
-      document.body.removeChild(backdrop);
-      await creditTowerPoints(earned);
-      return;
-    }
-    const action = e.target.closest("[data-action]")?.dataset.action;
-    if(!action) return;
-    document.body.removeChild(backdrop);
-
-    if(action === "take"){
-      await creditTowerPoints(earned);
-    } else if(action === "double"){
+  // Кнопки "Забрать очки" / "×2 за рекламу" теперь живут прямо в
+  // интерфейсе самой игры (tower-game.html) - сюда прилетает уже готовое
+  // решение пользователя вместе с суммой, которую игра сама посчитала
+  if(data.type === "towerbloxx:takePoints"){
+    const amount = Math.max(0, Math.floor(Number(data.amount) || 0));
+    (async ()=>{
+      await creditTowerPoints(amount);
+      sendPointsResultToGame(true, amount);
+    })();
+  }
+  if(data.type === "towerbloxx:doublePoints"){
+    const amount = Math.max(0, Math.floor(Number(data.amount) || 0));
+    (async ()=>{
+      let credited = amount;
       try{
         await window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }).show();
-        await creditTowerPoints(earned * 2);
+        credited = amount * 2;
       }catch(err){
         console.warn("Реклама не досмотрена, начисляем базовые очки:", err);
-        await creditTowerPoints(earned);
       }
-    }
-  });
+      await creditTowerPoints(credited);
+      sendPointsResultToGame(true, credited);
+    })();
+  }
+});
 
-  document.body.appendChild(backdrop);
+function sendPointsResultToGame(ok, credited){
+  const frame = document.getElementById("towerFrame");
+  if(frame && frame.contentWindow){
+    try{
+      frame.contentWindow.postMessage({ type:"towerbloxx:pointsResult", ok, credited }, "*");
+    }catch(err){}
+  }
 }
 
 async function creditTowerPoints(amount){

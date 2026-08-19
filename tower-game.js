@@ -17,10 +17,19 @@ class Stage {
     };
     this.container = document.getElementById("game");
 
+    // На iOS сглаживание (antialias) и высокий pixel ratio ощутимо грузят
+    // GPU/память - это увеличивает частоту и заметность пауз сборщика
+    // мусора (те самые кратковременные "подвисания"). Отключаем
+    // сглаживание и ограничиваем чёткость картинки именно на iOS -
+    // на остальных устройствах ничего не меняется.
+    const isIOS = /iP(hone|od|ad)/.test(navigator.platform)
+      || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: !isIOS,
       alpha: false,
     });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isIOS ? 1.5 : 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor("#D0CBC7", 1);
     this.container.appendChild(this.renderer.domElement);
@@ -435,6 +444,16 @@ class Game {
     this.updateState(this.STATES.ENDED);
     const finalScore = this.blocks.length - 2;
     const earnedPoints = finalScore > 10 ? finalScore : 0;
+
+    // Локальное событие - собственный интерфейс игры (кнопки "Забрать
+    // очки" / "×2 за рекламу") слушает именно его, чтобы знать актуальный
+    // счёт прямо сейчас, не дожидаясь ответа от родительского окна
+    try {
+      window.dispatchEvent(new CustomEvent("towerbloxx:localgameover", {
+        detail: { score: finalScore, earnedPoints }
+      }));
+    } catch (e) {}
+
     /* Сообщаем счёт наружу (родительскому окну «Зеркала дня») —
        очки начисляются в накопитель только если счёт выше 10. */
     try {

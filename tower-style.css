@@ -72,30 +72,74 @@ body {
   user-select: none;
 }
 
-/* Кнопка "Продолжить за 1 алмаз" - выше клик-слоя по z-index, поэтому
-   pointer-events выключен по умолчанию и включается ТОЛЬКО в состоянии
-   ended, иначе она (пусть и невидимая) перехватывала бы клики поверх
-   игры в остальных состояниях */
-#container .game-over .continue-btn {
-  display: block;
-  margin: 16px auto 0;
+/* Панель кнопок после проигрыша. Все кнопки внутри - выше клик-слоя по
+   z-index, поэтому pointer-events выключен по умолчанию и включается
+   ТОЛЬКО в состоянии ended, иначе они (пусть и невидимые) перехватывали
+   бы клики поверх игры в остальных состояниях. */
+#container .game-over .go-score {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 2px 0 18px;
+}
+
+#container .game-over .go-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(280px, 78vw);
+  margin: 0 auto;
+  background: rgba(255,255,255,0.3);
+  border-radius: 22px;
+  padding: 18px;
+}
+
+#container .game-over .go-btn {
   position: relative;
   z-index: 1002;
-  border: 3px solid #333344;
-  background-color: #333344;
-  color: #D0CBC7;
-  padding: 9px 20px;
-  font-size: 18px;
+  border: none;
+  border-radius: 100px;
+  padding: 12px 18px;
+  font-size: 16px;
+  font-weight: bold;
   font-family: inherit;
   cursor: pointer;
   pointer-events: none;
+  transition: opacity .15s ease, transform .1s ease;
 }
-#container.ended .game-over .continue-btn {
-  pointer-events: auto;
+#container.ended .game-over .go-btn { pointer-events: auto; }
+#container .game-over .go-btn:active { transform: scale(0.96); }
+#container .game-over .go-btn:disabled { opacity: 0.35; cursor: default; }
+
+#container .game-over .go-btn--primary {
+  background-color: #333344;
+  color: #D0CBC7;
 }
-#container .game-over .continue-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+
+#container .game-over .go-points-row {
+  display: flex;
+  gap: 8px;
+}
+#container .game-over .go-points-row .go-btn {
+  flex: 1;
+  font-size: 13.5px;
+  padding: 10px 8px;
+}
+
+#container .game-over .go-btn--ghost {
+  background: transparent;
+  border: 2px solid #333344;
+  color: #333344;
+}
+#container .game-over .go-btn--accent {
+  background-color: #E0A458;
+  color: #2b1d08;
+}
+
+#container .game-over .go-hint {
+  margin-top: 16px;
+  font-size: 13px;
+  opacity: 0.7;
 }
 #container .game-ready {
   position: absolute;
