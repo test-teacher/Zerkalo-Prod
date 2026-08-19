@@ -446,6 +446,17 @@ class Game {
       }
     } catch (e) {}
   }
+  /* Продолжение после проигрыша за алмаз - "откат на 1 тайл": последний
+     (неудачный) блок просто убирается из списка, будто его не было, и
+     игра возобновляется с последнего успешно установленного блока.
+     Вызывается родительским окном ТОЛЬКО после того, как алмаз реально
+     списан на сервере - сама игра ничего не знает про алмазы. */
+  continueAfterLoss() {
+    this.blocks.pop();
+    this.updateState(this.STATES.PLAYING);
+    this.scoreContainer.innerHTML = String(this.blocks.length - 1);
+    this.addBlock();
+  }
   tick() {
     if (this.isGameStopped) {
       this.stage.render();

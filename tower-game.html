@@ -25,6 +25,7 @@
       <h2>Игра окончена!</h2>
       <p>Ты отлично справился, но можно лучше!</p>
       <p>Нажмите, чтобы начать заново</p>
+      <button id="continueBtn" class="continue-btn">Продолжить за 1 💎</button>
     </div>
     <div class="game-ready">
       <div id="start-button">Построй свою башню!</div>
@@ -52,11 +53,34 @@
     })();
 
     // Родитель может прислать актуальный тотал очков (например, сразу после начисления)
+    // и результат запроса на продолжение игры за алмаз
     window.addEventListener("message", (e) => {
       const data = e.data || {};
       if (data.type === "towerbloxx:pointsUpdate" && typeof data.total === "number") {
         document.getElementById("pointsVal").textContent = data.total;
       }
+      if (data.type === "towerbloxx:continueResult") {
+        const btn = document.getElementById("continueBtn");
+        btn.disabled = false;
+        btn.textContent = "Продолжить за 1 💎";
+        if (data.ok && window.game && window.game.continueAfterLoss) {
+          window.game.continueAfterLoss();
+        }
+        // при ok:false родитель сам покажет предупреждение о нехватке
+        // алмазов - тут просто возвращаем кнопку в исходное состояние
+      }
+    });
+
+    document.getElementById("continueBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = "Списываем 💎…";
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "towerbloxx:continueRequest" }, "*");
+        }
+      } catch (err) {}
     });
 
     document.getElementById("closeGameBtn").addEventListener("click", (e) => {
