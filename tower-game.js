@@ -102,6 +102,17 @@ function generateColor(index, offset) {
   return new THREE.Color(r / 255, g / 255, b / 255);
 }
 
+// Общая геометрия-"заготовка" на всю игру - куб от (0,0,0) до (1,1,1),
+// растягивается под нужный размер через mesh.scale вместо того, чтобы
+// на каждый блок и каждую его установку рождать новую BoxGeometry.
+// Раньше на одну установку блока создавалось до трёх новых геометрий
+// подряд (сам блок + "поставленная" часть + "отвалившийся" кусок) - это
+// была основная причина пауз сборщика мусора и подвисаний, особенно
+// заметных на iOS. Освещение и материал (MeshToonMaterial) не менялись -
+// затронута только геометрия, внешний вид блоков ровно тот же.
+const UNIT_BOX_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
+UNIT_BOX_GEOMETRY.applyMatrix(new THREE.Matrix4().makeTranslation(0.5, 0.5, 0.5));
+
 class Block {
   constructor(block) {
     this.lastTime = performance.now();
@@ -142,27 +153,13 @@ class Block {
     if (this.speed < -4) this.speed = -4;
     this.direction = this.speed;
 
-    let geometry = new THREE.BoxGeometry(
-      this.dimension.width,
-      this.dimension.height,
-      this.dimension.depth
-    );
-    geometry.applyMatrix(
-      new THREE.Matrix4().makeTranslation(
-        this.dimension.width / 2,
-        this.dimension.height / 2,
-        this.dimension.depth / 2
-      )
-    );
-    // MeshToonMaterial требует на каждый кадр расчёт освещения по двум
-    // источникам света. На iOS используем MeshBasicMaterial - тот же цвет,
-    // но вообще без расчёта освещения, дешевле для GPU. Цена - блоки
-    // становятся плоско закрашенными, без градиента тона, но это разумный
-    // компромисс ради надёжности под троттлингом энергосбережения.
-    this.material = isIOS
-      ? new THREE.MeshBasicMaterial({ color: this.color })
-      : new THREE.MeshToonMaterial({ color: this.color, shading: THREE.FlatShading });
-    this.mesh = new THREE.Mesh(geometry, this.material);
+    // Геометрия общая на всю игру (UNIT_BOX_GEOMETRY) - нужный размер
+    // задаётся через scale меша, а не через создание новой геометрии.
+    // Освещение и материал одинаковые на всех устройствах - внешний вид
+    // блоков не меняется в зависимости от платформы.
+    this.material = new THREE.MeshToonMaterial({ color: this.color, shading: THREE.FlatShading });
+    this.mesh = new THREE.Mesh(UNIT_BOX_GEOMETRY, this.material);
+    this.mesh.scale.set(this.dimension.width, this.dimension.height, this.dimension.depth);
     this.mesh.position.set(
       this.position.x,
       this.position.y + (this.state == this.STATES.ACTIVE ? 0 : 0),
@@ -204,32 +201,11 @@ class Block {
       };
       choppedDimensions[this.workingDimension] -= overlap;
       this.dimension[this.workingDimension] = overlap;
-      let placedGeometry = new THREE.BoxGeometry(
-        this.dimension.width,
-        this.dimension.height,
-        this.dimension.depth
-      );
-      placedGeometry.applyMatrix(
-        new THREE.Matrix4().makeTranslation(
-          this.dimension.width / 2,
-          this.dimension.height / 2,
-          this.dimension.depth / 2
-        )
-      );
-      let placedMesh = new THREE.Mesh(placedGeometry, this.material);
-      let choppedGeometry = new THREE.BoxGeometry(
-        choppedDimensions.width,
-        choppedDimensions.height,
-        choppedDimensions.depth
-      );
-      choppedGeometry.applyMatrix(
-        new THREE.Matrix4().makeTranslation(
-          choppedDimensions.width / 2,
-          choppedDimensions.height / 2,
-          choppedDimensions.depth / 2
-        )
-      );
-      let choppedMesh = new THREE.Mesh(choppedGeometry, this.material);
+      let placedMesh = new THREE.Mesh(UNIT_BOX_GEOMETRY, this.material);
+      placedMesh.scale.set(this.dimension.width, this.dimension.height, this.dimension.depth);
+
+      let choppedMesh = new THREE.Mesh(UNIT_BOX_GEOMETRY, this.material);
+      choppedMesh.scale.set(choppedDimensions.width, choppedDimensions.height, choppedDimensions.depth);
       let choppedPosition = {
         x: this.position.x,
         y: this.position.y,
@@ -377,7 +353,9 @@ class Game {
         ease: Power1.easeIn,
         onComplete: () => {
           this.placedBlocks.remove(oldBlocks[i]);
-          if (oldBlocks[i].geometry) oldBlocks[i].geometry.dispose();
+          // Геометрия общая на все блоки (UNIT_BOX_GEOMETRY) - её нельзя
+          // освобождать, она ещё нужна остальным. Материал - свой у
+          // каждого блока (разные цвета), его освобождать можно и нужно.
           if (oldBlocks[i].material) oldBlocks[i].material.dispose();
         },
       });
@@ -405,10 +383,8 @@ class Game {
     let currentBlock = this.blocks[this.blocks.length - 1];
     let newBlocks = currentBlock.place();
     this.newBlocks.remove(currentBlock.mesh);
-    // Геометрия исходного блока больше не используется - place() создал
-    // новые отдельные геометрии для placedMesh/choppedMesh. Материал НЕ
-    // освобождаем - он общий с этими новыми мешами, ещё пригодится.
-    if (currentBlock.mesh.geometry) currentBlock.mesh.geometry.dispose();
+    // Геометрия теперь общая на всю игру (UNIT_BOX_GEOMETRY) - её никогда
+    // не освобождаем, ни здесь, ни у placed/chopped-мешей ниже.
     if (newBlocks.placed) this.placedBlocks.add(newBlocks.placed);
     if (newBlocks.chopped) {
       this.choppedBlocks.add(newBlocks.chopped);
@@ -417,7 +393,6 @@ class Game {
         ease: Power1.easeIn,
         onComplete: () => {
           this.choppedBlocks.remove(newBlocks.chopped);
-          if (newBlocks.chopped.geometry) newBlocks.chopped.geometry.dispose();
         },
       };
       let rotateRandomness = 10;
