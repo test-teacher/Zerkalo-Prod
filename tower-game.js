@@ -4,6 +4,13 @@
 
 console.clear();
 
+// Используется и для рендерера (сглаживание/pixelRatio), и для материала
+// блоков (упрощённый без освещения на iOS) - меньше нагрузки на GPU,
+// особенно заметно на iPhone в режиме энергосбережения, где браузер и так
+// троттлится системой и любая лишняя работа увеличивает риск подвисания.
+const isIOS = /iP(hone|od|ad)/.test(navigator.platform)
+  || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+
 class Stage {
   constructor() {
     this.render = function () {
@@ -19,17 +26,14 @@ class Stage {
 
     // На iOS сглаживание (antialias) и высокий pixel ratio ощутимо грузят
     // GPU/память - это увеличивает частоту и заметность пауз сборщика
-    // мусора (те самые кратковременные "подвисания"). Отключаем
-    // сглаживание и ограничиваем чёткость картинки именно на iOS -
-    // на остальных устройствах ничего не меняется.
-    const isIOS = /iP(hone|od|ad)/.test(navigator.platform)
-      || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
-
+    // мусора и подвисаний, особенно в режиме энергосбережения, где сама
+    // система и так троттлит производительность браузера. pixelRatio на
+    // iOS зафиксирован в 1 - жертвуем чёткостью картинки ради надёжности.
     this.renderer = new THREE.WebGLRenderer({
       antialias: !isIOS,
       alpha: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isIOS ? 1.5 : 2));
+    this.renderer.setPixelRatio(isIOS ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor("#D0CBC7", 1);
     this.container.appendChild(this.renderer.domElement);
@@ -150,10 +154,14 @@ class Block {
         this.dimension.depth / 2
       )
     );
-    this.material = new THREE.MeshToonMaterial({
-      color: this.color,
-      shading: THREE.FlatShading,
-    });
+    // MeshToonMaterial требует на каждый кадр расчёт освещения по двум
+    // источникам света. На iOS используем MeshBasicMaterial - тот же цвет,
+    // но вообще без расчёта освещения, дешевле для GPU. Цена - блоки
+    // становятся плоско закрашенными, без градиента тона, но это разумный
+    // компромисс ради надёжности под троттлингом энергосбережения.
+    this.material = isIOS
+      ? new THREE.MeshBasicMaterial({ color: this.color })
+      : new THREE.MeshToonMaterial({ color: this.color, shading: THREE.FlatShading });
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.position.set(
       this.position.x,
