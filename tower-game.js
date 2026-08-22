@@ -157,7 +157,13 @@ class Block {
     // задаётся через scale меша, а не через создание новой геометрии.
     // Освещение и материал одинаковые на всех устройствах - внешний вид
     // блоков не меняется в зависимости от платформы.
-    this.material = new THREE.MeshToonMaterial({ color: this.color, shading: THREE.FlatShading });
+    // Без FlatShading - он в Three.js считается через производные в
+    // фрагментном шейдере на каждый пиксель (dFdx/dFdy), это отдельная
+    // статья расхода поверх самого освещения. Само освещение (два
+    // источника света, MeshToonMaterial) остаётся полноценным - меняется
+    // только то, что грани стали слегка сглаженными, а не подчёркнуто
+    // гранёными.
+    this.material = new THREE.MeshToonMaterial({ color: this.color });
     this.mesh = new THREE.Mesh(UNIT_BOX_GEOMETRY, this.material);
     this.mesh.scale.set(this.dimension.width, this.dimension.height, this.dimension.depth);
     this.mesh.position.set(
